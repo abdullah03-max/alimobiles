@@ -170,6 +170,7 @@ export default function Pos() {
       toast.error('Sale not completed', 'User session is not ready. Please wait a moment and try again.');
       return;
     }
+    const uid = currentUserId as string;
 
     const total = grandTotal();
     const paid = parseFloat(paidAmount) || total;
@@ -182,7 +183,7 @@ export default function Pos() {
         const { sale, errorMessage } = await addSale({
           customerId: selectedCustomerId,
           customerName: selectedCustomerName,
-          createdBy: currentUserId,
+          createdBy: uid,
           items: cartItems.map(i => ({
             productId: i.productId,
             productName: i.productName,
