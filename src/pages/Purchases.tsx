@@ -21,7 +21,7 @@ export default function Purchases() {
 
   // New purchase form state
   const [supplierId, setSupplierId] = useState('');
-  const [items, setItems] = useState<{ productId: string; quantity: number; unitCost: number }[]>([{ productId: '', quantity: 1, unitCost: 0 }]);
+  const [items, setItems] = useState<{ productId: string; quantity: number; unitCost: number; total: number }[]>([{ productId: '', quantity: 1, unitCost: 0, total: 0 }]);
   const [scanQuery, setScanQuery] = useState('');
   const scanRef = useRef<HTMLInputElement | null>(null);
   const [taxRate, setTaxRate] = useState(18);
@@ -41,7 +41,7 @@ export default function Purchases() {
     paid: purchases.filter(p => p.status === 'received').length,
   }), [purchases]);
 
-  const addItemRow = () => setItems([...items, { productId: '', quantity: 1, unitCost: 0 }]);
+  const addItemRow = () => setItems([...items, { productId: '', quantity: 1, unitCost: 0, total: 0 }]);
   const removeItemRow = (idx: number) => setItems(items.filter((_, i) => i !== idx));
   const updateItem = (idx: number, field: string, value: unknown) => {
     const newItems = [...items];
@@ -70,7 +70,7 @@ export default function Purchases() {
       newItems[existingIdx].total = newItems[existingIdx].quantity * newItems[existingIdx].unitCost;
       setItems(newItems);
     } else {
-      setItems([...items, { productId: prod.id, quantity: 1, unitCost: prod.costPrice }]);
+      setItems([...items, { productId: prod.id, quantity: 1, unitCost: prod.costPrice, total: prod.costPrice }]);
     }
     return true;
   };
@@ -97,7 +97,7 @@ export default function Purchases() {
 
     const purchaseItems = items.map(i => {
       const prod = products.find(p => p.id === i.productId);
-      return { productId: i.productId, productName: prod?.name || '', quantity: i.quantity, unitCost: i.unitCost, total: i.quantity * i.unitCost };
+      return { productId: i.productId, productName: prod?.name || '', quantity: i.quantity, unitCost: i.unitCost, total: i.total };
     });
 
     addPurchase({ supplierId, supplierName: supplier.name, items: purchaseItems, subtotal, tax, discount: 0, shipping: 0, grandTotal, paidAmount: 0, status: 'pending' });

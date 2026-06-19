@@ -4,6 +4,7 @@ import { useCartStore } from '@/stores/cartStore';
 import { useCustomerStore } from '@/stores/customerStore';
 import { useSaleStore } from '@/stores/saleStore';
 import { useSettingsStore, type PaymentMethods } from '@/stores/settingsStore';
+type PaymentMethodKey = keyof PaymentMethods;
 import InvoiceReceipt from '@/components/shared/InvoiceReceipt';
 import { useToast } from '@/hooks/useToast';
 import { usePrint } from '@/hooks/usePrint';
@@ -47,7 +48,7 @@ export default function Pos() {
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<keyof PaymentMethods>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodKey>('cash');
   const [paidAmount, setPaidAmount] = useState('');
   const [checkoutNotes, setCheckoutNotes] = useState('');
   const [saleComplete, setSaleComplete] = useState(false);
@@ -144,19 +145,21 @@ export default function Pos() {
   }, [checkoutOpen, loadSettings]);
 
   const enabledPaymentMethods = useMemo(() => {
-    return [
+    const methods: Array<{ value: PaymentMethodKey; label: string; icon: typeof Banknote }> = [
       { value: 'cash', label: 'Cash', icon: Banknote },
       { value: 'card', label: 'Card', icon: CreditCard },
       { value: 'bank_transfer', label: 'Bank', icon: Landmark },
       { value: 'jazzcash', label: 'JazzCash', icon: Smartphone },
       { value: 'easypaisa', label: 'EasyPaisa', icon: Wallet },
       { value: 'credit', label: 'Credit', icon: ShoppingBag },
-    ].filter(pm => paymentMethods[pm.value as keyof PaymentMethods]);
+    ];
+
+    return methods.filter(pm => paymentMethods[pm.value]);
   }, [paymentMethods]);
 
   useEffect(() => {
     if (!enabledPaymentMethods.some(pm => pm.value === paymentMethod)) {
-      setPaymentMethod(enabledPaymentMethods[0]?.value || 'cash');
+      setPaymentMethod((enabledPaymentMethods[0]?.value ?? 'cash') as PaymentMethodKey);
     }
   }, [enabledPaymentMethods, paymentMethod]);
 
@@ -179,6 +182,7 @@ export default function Pos() {
         const { sale, errorMessage } = await addSale({
           customerId: selectedCustomerId,
           customerName: selectedCustomerName,
+          createdBy: currentUserId,
           items: cartItems.map(i => ({
             productId: i.productId,
             productName: i.productName,
@@ -524,7 +528,7 @@ export default function Pos() {
                     <button
                       key={value}
                       type="button"
-                      onClick={() => setPaymentMethod(value as typeof paymentMethod)}
+                      onClick={() => setPaymentMethod(value)}
                       className={cn(
                         'flex flex-col items-center gap-1 p-3 rounded-lg border-2 transition-colors',
                         paymentMethod === value
