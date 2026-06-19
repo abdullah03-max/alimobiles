@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
+import logoImage from '@/assets/—Pngtree—ali urdu calligraphy free eps_5739559.png';
 
 export default function Login() {
   const login = useAuthStore(s => s.login);
@@ -28,16 +29,16 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
-      <div className="w-full max-w-[400px]">
-        <div className="bg-white rounded-xl shadow-lg p-8">
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4 py-8 sm:px-6">
+      <div className="w-full max-w-md sm:max-w-lg">
+        <div className="bg-white rounded-3xl shadow-lg p-6 sm:p-8">
           {/* Logo */}
           <div className="text-center mb-6">
-            <div className="w-14 h-14 bg-orange-500 rounded-xl flex items-center justify-center mx-auto mb-3">
-              <span className="text-white font-bold text-lg">POS</span>
+            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl overflow-hidden flex items-center justify-center mx-auto mb-3 bg-white shadow-sm">
+              <img src={logoImage} alt="Ali Mobiles POS" className="w-full h-full object-contain" />
             </div>
-            <h1 className="text-lg font-semibold text-gray-800">Ali Mobiles <span className="text-orange-500">POS</span></h1>
-            <p className="text-sm text-gray-500 mt-1">Sign in to your account</p>
+            <h1 className="text-lg sm:text-xl font-semibold text-gray-800">Ali Mobiles <span className="text-orange-500">POS</span></h1>
+            <p className="text-sm sm:text-base text-gray-500 mt-1">Sign in to your account</p>
           </div>
 
           {/* Form */}

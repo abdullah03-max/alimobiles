@@ -30,7 +30,7 @@ export default function AppLayout() {
       <main
         className={cn(
           'pt-14 min-h-screen transition-all duration-200',
-          sidebarCollapsed ? 'ml-16' : 'ml-[260px]'
+          sidebarCollapsed ? 'sm:ml-16' : 'sm:ml-[260px]'
         )}
       >
         <div className="p-6">

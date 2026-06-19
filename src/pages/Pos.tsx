@@ -249,12 +249,12 @@ export default function Pos() {
   }, [customers, customerSearch]);
 
   return (
-    <div className="fixed inset-0 top-14 left-[260px] right-0 bottom-0 flex" style={{ marginLeft: 0 }}>
+    <div className="flex min-h-[calc(100vh-3.5rem)] flex-col lg:flex-row">
       {/* Left Panel - Products */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Category Tabs + Search */}
-        <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-3">
-          <div className="flex gap-1 overflow-x-auto scrollbar-thin">
+        <div className="bg-white border-b border-gray-200 px-4 py-2 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex flex-wrap gap-2 overflow-x-auto scrollbar-thin">
             <button
               onClick={() => setActiveCategory('all')}
               className={cn(
@@ -277,7 +277,7 @@ export default function Pos() {
               </button>
             ))}
           </div>
-          <div className="flex-1 max-w-xs ml-auto">
+          <div className="flex-1 max-w-full sm:max-w-xs ml-auto">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Barcode className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -333,7 +333,7 @@ export default function Pos() {
       </div>
 
       {/* Right Panel - Cart */}
-      <div className="w-[420px] flex flex-col bg-white border-l border-gray-200">
+      <div className="w-full lg:w-[420px] flex flex-col bg-white border-t border-gray-200 lg:border-t-0 lg:border-l">
         {/* Cart Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
           <div>

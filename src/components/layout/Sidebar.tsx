@@ -38,6 +38,8 @@ export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const collapsed = useUiStore(s => s.sidebarCollapsed);
+  const sidebarOpen = useUiStore(s => s.sidebarOpen);
+  const closeSidebar = useUiStore(s => s.closeSidebar);
   const logout = useAuthStore(s => s.logout);
   const shopName = useSettingsStore(s => s.shopSettings.shopName);
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
@@ -49,12 +51,21 @@ export default function Sidebar() {
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <aside
-      className={cn(
-        'fixed left-0 top-0 h-full bg-gray-50 border-r border-gray-200 z-[45] flex flex-col transition-all duration-200',
-        collapsed ? 'w-16' : 'w-[260px]'
+    <>
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/30 sm:hidden"
+          onClick={closeSidebar}
+        />
       )}
-    >
+      <aside
+        className={cn(
+          'fixed inset-y-0 left-0 z-50 flex flex-col bg-gray-50 border-r border-gray-200 transition-transform duration-200 shadow-xl sm:shadow-none',
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full sm:translate-x-0',
+          collapsed ? 'sm:w-16' : 'sm:w-[260px]',
+          'w-full sm:w-auto'
+        )}
+      >
       {/* Logo */}
       <div className={cn('h-14 flex items-center border-b border-gray-200', collapsed ? 'justify-center px-2' : 'px-4')}>
         <div className="flex items-center gap-2">
@@ -116,7 +127,12 @@ export default function Sidebar() {
           return (
             <button
               key={item.path}
-              onClick={() => item.path && navigate(item.path)}
+              onClick={() => {
+                if (item.path) {
+                  navigate(item.path);
+                  closeSidebar();
+                }
+              }}
               className={cn(
                 'w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-gray-100',
                 isActive(item.path || '')
@@ -136,7 +152,10 @@ export default function Sidebar() {
       {/* Logout */}
       <div className="border-t border-gray-200 p-2">
         <button
-          onClick={logout}
+          onClick={() => {
+            logout();
+            closeSidebar();
+          }}
           className={cn(
             'w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 transition-colors rounded-md',
             collapsed && 'justify-center px-2'
@@ -147,5 +166,6 @@ export default function Sidebar() {
         </button>
       </div>
     </aside>
+    </>
   );
 }

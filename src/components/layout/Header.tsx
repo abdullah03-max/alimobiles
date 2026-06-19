@@ -29,6 +29,7 @@ export default function Header() {
   const location = useLocation();
   const navigate = useNavigate();
   const toggleSidebar = useUiStore(s => s.toggleSidebar);
+  const toggleMobileSidebar = useUiStore(s => s.toggleMobileSidebar);
   const sidebarCollapsed = useUiStore(s => s.sidebarCollapsed);
   const user = useAuthStore(s => s.user);
   const dateFormat = useSettingsStore(s => s.shopSettings.dateFormat);
@@ -41,6 +42,11 @@ export default function Header() {
   const sales = useSaleStore(s => s.sales);
 
   const pageTitle = pageTitles[location.pathname] || 'Ali Mobiles POS';
+  const closeSidebar = useUiStore(s => s.closeSidebar);
+
+  useEffect(() => {
+    closeSidebar();
+  }, [location.pathname, closeSidebar]);
 
   const notifications = useMemo(() => {
     const today = new Date();
@@ -101,12 +107,18 @@ export default function Header() {
     <header
       className={cn(
         'fixed top-0 right-0 h-14 bg-white border-b border-gray-200 z-[30] flex items-center justify-between px-4 transition-all duration-200',
-        sidebarCollapsed ? 'left-16' : 'left-[260px]'
+        sidebarCollapsed ? 'sm:left-16' : 'sm:left-[260px]'
       )}
     >
       <div className="flex items-center gap-3">
         <button
-          onClick={toggleSidebar}
+          onClick={() => {
+            if (window.innerWidth < 768) {
+              toggleMobileSidebar();
+            } else {
+              toggleSidebar();
+            }
+          }}
           className="p-1.5 rounded-md hover:bg-gray-100 text-gray-600"
         >
           <Menu className="w-5 h-5" />
