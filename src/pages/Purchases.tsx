@@ -104,7 +104,7 @@ export default function Purchases() {
     toast.success('Purchase order created');
     setModalOpen(false);
     setSupplierId('');
-    setItems([{ productId: '', quantity: 1, unitCost: 0 }]);
+    setItems([{ productId: '', quantity: 1, unitCost: 0, total: 0 }]);
     setTaxRate(18);
   };
 
