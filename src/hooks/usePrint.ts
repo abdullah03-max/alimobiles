@@ -10,44 +10,50 @@ export function usePrint() {
 
     const style = `
       @page { size: ${receiptWidth} auto; margin: 0; }
-      body { font-family: Arial, sans-serif; font-size: 12px; width: ${receiptWidth}; padding: 8px; margin: 0; color: #111; }
+      html, body { margin: 0; padding: 0; }
+      body {
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 11px;
+        width: ${receiptWidth};
+        padding: 8px 6px;
+        color: #111;
+        background: #fff;
+        line-height: 1.2;
+      }
+      .receipt-container { width: ${receiptWidth}; margin: 0 auto; padding-bottom: 30px; }
+      .receipt-header { text-align: center; }
+      .receipt-header .shop-name { font-weight: bold; font-size: 14px; text-transform: uppercase; }
+      .receipt-header .small { font-size: 10px; margin-top: 2px; }
+      .receipt-divider { border-top: 1px dashed #000; margin: 6px 0; }
+      .receipt-row { display: flex; justify-content: space-between; width: 100%; }
+      .receipt-row .label { text-align: left; }
+      .receipt-row .value { text-align: right; }
+      .receipt-items { width: 100%; margin-top: 6px; }
+      .receipt-item { display: flex; justify-content: space-between; margin-bottom: 3px; }
+      .receipt-item-name { width: 55%; word-wrap: break-word; }
+      .receipt-item-qty { width: 15%; text-align: center; }
+      .receipt-item-price { width: 15%; text-align: right; }
+      .receipt-item-total { width: 15%; text-align: right; }
+      .receipt-footer { text-align: center; margin-top: 8px; font-size: 10px; }
       .text-center { text-align: center; }
       .text-left { text-align: left; }
       .text-right { text-align: right; }
-      .border-t { border-top: 1px dashed #000; }
-      .border-b { border-bottom: 1px dashed #000; }
-      .py-1 { padding-top: 4px; padding-bottom: 4px; }
-      .my-1 { margin-top: 4px; margin-bottom: 4px; }
+      pre.receipt-pre {
+        font-family: 'Courier New', Courier, monospace;
+        white-space: pre;
+        font-size: 11px;
+        margin: 0;
+        line-height: 1.2;
+      }
+      img { max-width: 100%; height: auto; }
+      .p-0 { padding: 0; }
+      .mb-1 { margin-bottom: 4px; }
+      .mb-2 { margin-bottom: 8px; }
       .mt-1 { margin-top: 4px; }
       .mt-2 { margin-top: 8px; }
-      .pt-1 { padding-top: 4px; }
       .font-bold { font-weight: bold; }
-      .text-base { font-size: 14px; }
-      .text-xs { font-size: 11px; }
-      .text-orange-500 { color: #f97316; }
-      .text-green-600 { color: #16a34a; }
-      .text-gray-500 { color: #6b7280; }
-      .text-gray-600 { color: #4b5563; }
-      .text-gray-800 { color: #1f2937; }
-      .bg-gray-50 { background-color: #f9fafb; }
-      .border { border: 1px solid #e5e7eb; }
-      .border-t { border-top: 1px dashed #000; }
-      .border-b { border-bottom: 1px dashed #000; }
-      .rounded-lg { border-radius: 0.5rem; }
-      .rounded-xl { border-radius: 0.75rem; }
-      .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
-      .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
-      .px-4 { padding-left: 1rem; padding-right: 1rem; }
-      .py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
-      .px-1\.5 { padding-left: 0.375rem; padding-right: 0.375rem; }
-      .table { width: 100%; border-collapse: collapse; }
-      table { width: 100%; border-collapse: collapse; }
-      th, td { padding: 4px 0; }
-      .w-full { width: 100%; }
-      .font-medium { font-weight: 500; }
       .uppercase { text-transform: uppercase; }
       .capitalize { text-transform: capitalize; }
-      img { max-width: 100%; height: auto; }
     `;
 
     printWindow.document.open();
