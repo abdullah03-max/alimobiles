@@ -9,6 +9,7 @@ import Pos from '@/pages/Pos';
 import Sales from '@/pages/Sales';
 import Products from '@/pages/Products';
 import AddProduct from '@/pages/AddProduct';
+import ProductImeis from '@/pages/ProductImeis';
 import Categories from '@/pages/Categories';
 import Suppliers from '@/pages/Suppliers';
 import Purchases from '@/pages/Purchases';
@@ -71,6 +72,7 @@ export default function App() {
         <Route path="/products" element={<Products />} />
         <Route path="/products/add" element={<AddProduct />} />
         <Route path="/products/edit/:id" element={<AddProduct />} />
+        <Route path="/products/:id/imeis" element={<ProductImeis />} />
         <Route path="/categories" element={<Categories />} />
         {/* Brands, Units and Inventory routes removed */}
         <Route path="/suppliers" element={<Suppliers />} />

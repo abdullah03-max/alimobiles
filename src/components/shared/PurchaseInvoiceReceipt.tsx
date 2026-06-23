@@ -1,13 +1,14 @@
 import { useEffect } from 'react';
-import type { Sale, ShopSettings, ReceiptSettings } from '@/types';
+import type { Purchase, ShopSettings, ReceiptSettings } from '@/types';
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import logoImage from '@/assets/—Pngtree—ali urdu calligraphy free eps_5739559.png';
-import { useCustomerStore } from '@/stores/customerStore';
-import { useSaleStore } from '@/stores/saleStore';
+import { useSupplierStore } from '@/stores/supplierStore';
+import { useProductStore } from '@/stores/productStore';
+import { useImeiStore } from '@/stores/imeiStore';
 
-interface InvoiceReceiptProps {
-  sale: Sale;
+interface PurchaseInvoiceReceiptProps {
+  purchase: Purchase;
   shopSettings: ShopSettings;
   receiptSettings: ReceiptSettings;
   className?: string;
@@ -60,7 +61,6 @@ function wrapText(text: string, width: number) {
       current = current ? `${current} ${w}` : w;
     } else {
       if (current) lines.push(current);
-      // if single word longer than width, hard-slice it
       if (w.length > width) {
         for (let i = 0; i < w.length; i += width) {
           lines.push(w.slice(i, i + width));
@@ -77,6 +77,16 @@ function wrapText(text: string, width: number) {
 
 function formatAmount(amount: number) {
   return formatNumber(amount);
+}
+
+function groupPurchaseItems(items: any[]) {
+  const groupedMap: Record<string, any> = {};
+  items.forEach((item: any) => {
+    const pid = item.productId || 'unknown';
+    if (!groupedMap[pid]) groupedMap[pid] = { productId: pid, productName: item.productName, unitCost: item.unitCost, brandName: item.brandName, model: item.model, storage: item.storage, imeis: [] as any[] };
+    groupedMap[pid].imeis.push({ imei: item.imei, color: item.color, ram: item.ram, storage: item.storage });
+  });
+  return Object.values(groupedMap) as any[];
 }
 
 function numberToWords(num: number): string {
@@ -123,50 +133,38 @@ function numberToWords(num: number): string {
   return (word.trim() + ' ONLY').toUpperCase();
 }
 
-export default function InvoiceReceipt({
-  sale,
+export default function PurchaseInvoiceReceipt({
+  purchase,
   shopSettings,
   receiptSettings,
   className,
   id,
   screen = false,
   layout = 'thermal',
-}: InvoiceReceiptProps) {
-  const paymentLabel = sale.paymentMethod.replace(/_/g, ' ');
+}: PurchaseInvoiceReceiptProps) {
+  const { getSupplierById } = useSupplierStore();
+  const { getProductById } = useProductStore();
+  const { findByImei } = useImeiStore();
+  const supplier = getSupplierById(purchase.supplierId);
+  const supplierAddress = supplier?.address || '';
+  const supplierPhone = supplier?.phone || '';
+  const supplierEmail = supplier?.email || '';
+
   const printWidth = receiptSettings.receiptWidth === '58mm' ? 32 : 46;
   const headerLines = receiptSettings.header?.split('\n').filter(Boolean) ?? [];
-  const customerName = sale.customerName?.trim() || 'OPENING CASH SALE';
-
-  // Retrieve customer details from customer store
-  const { getCustomerById } = useCustomerStore();
-  const customer = sale.customerId ? getCustomerById(sale.customerId) : undefined;
-  const customerPhone = customer?.phone || '';
-  const customerAddress = customer?.address || '';
-  
   const companyAddress = shopSettings.address ? shopSettings.address.split('\n') : [];
   const shopNameText = shopSettings.shopName?.trim()?.toUpperCase() || 'ALI MOBILES';
   const shopPhoneText = shopSettings.phone ? `Phone: ${shopSettings.phone}` : '';
   const shopEmailText = shopSettings.email ? `Email: ${shopSettings.email}` : '';
   const screenWidth = receiptSettings.receiptWidth === '58mm' ? 220 : 320;
 
-  // Retrieve all sales for previous balance calculation
-  const { sales } = useSaleStore();
-
-  useEffect(() => {
-    if (sales.length === 0) {
-      useSaleStore.getState().loadData();
-    }
-  }, []);
-
   const buildReceiptLines = () => {
     const lines: string[] = [];
     const footerLinesRaw = receiptSettings.footer?.split('\n') ?? [];
-    const termsLinesRaw = receiptSettings.termsAndConditions?.split('\n') ?? [];
     const addressRaw = (headerLines && headerLines.length > 0) ? headerLines : (shopSettings.address ? shopSettings.address.split('\n') : []);
 
     const addressLines = addressRaw.flatMap(l => l.trim() === '' ? [''] : wrapText(l, printWidth));
     const footerLines = footerLinesRaw.flatMap(l => l.trim() === '' ? [''] : wrapText(l, printWidth));
-    const termsLines = termsLinesRaw.flatMap(l => l.trim() === '' ? [''] : wrapText(l, printWidth));
 
     // Header Shop Name & Address
     if (shopNameText) {
@@ -188,13 +186,13 @@ export default function InvoiceReceipt({
     lines.push('-'.repeat(printWidth));
 
     // Invoice Meta Information
-    lines.push(padText('Invoice #:', 12) + padText(sale.invoiceNumber, printWidth - 12, 'right'));
-    lines.push(padText('Date:', 12) + padText(formatDate(sale.createdAt, shopSettings.dateFormat), printWidth - 12, 'right'));
-    lines.push(padText('Customer:', 12) + padText(customerName, printWidth - 12, 'right'));
-    if (customerPhone) {
-      lines.push(padText('Phone:', 12) + padText(customerPhone, printWidth - 12, 'right'));
+    lines.push(padText('PO #:', 12) + padText(purchase.poNumber, printWidth - 12, 'right'));
+    lines.push(padText('Date:', 12) + padText(formatDate(purchase.createdAt, shopSettings.dateFormat), printWidth - 12, 'right'));
+    lines.push(padText('Supplier:', 12) + padText(purchase.supplierName, printWidth - 12, 'right'));
+    if (supplierPhone) {
+      lines.push(padText('Phone:', 12) + padText(supplierPhone, printWidth - 12, 'right'));
     }
-    lines.push(padText('Payment:', 12) + padText(paymentLabel.toUpperCase(), printWidth - 12, 'right'));
+    lines.push(padText('Status:', 12) + padText(purchase.status.toUpperCase(), printWidth - 12, 'right'));
     lines.push('-'.repeat(printWidth));
 
     // Items Column Widths
@@ -212,51 +210,76 @@ export default function InvoiceReceipt({
     lines.push(snoHeader + separator + productHeader + separator + qtyHeader + separator + totalHeader);
     lines.push('-'.repeat(printWidth));
 
-    // Items List
-    sale.items.forEach((item, index) => {
-      const snoStr = padText(String(index + 1), snoWidth, 'left');
-      const nameLines = wrapText(item.productName, productWidth);
-      const qtyStr = padText(String(item.quantity), qtyWidth, 'right');
-      const totalStr = padText(formatAmount(item.total), totalWidth, 'right');
+    // Group items by productId so multiple IMEIs of same product are grouped together
+    const groupedMap: Record<string, any> = {};
+    purchase.items.forEach(item => {
+      const pid = item.productId || 'unknown';
+      if (!groupedMap[pid]) {
+        groupedMap[pid] = {
+          productId: pid,
+          productName: item.productName,
+          unitCost: item.unitCost,
+          brandName: item.brandName,
+          model: item.model,
+          storage: item.storage,
+          imeis: [] as { imei?: string; color?: string }[],
+        };
+      }
+      if (item.imei) groupedMap[pid].imeis.push({ imei: item.imei, color: item.color });
+      else groupedMap[pid].imeis.push({ imei: undefined, color: item.color });
+    });
 
-      lines.push(snoStr + separator + padText(nameLines[0] || '', productWidth, 'left') + separator + qtyStr + separator + totalStr);
-      for (let i = 1; i < nameLines.length; i++) {
-        lines.push(padText('', snoWidth) + separator + padText(nameLines[i], productWidth, 'left') + separator + padText('', qtyWidth) + separator + padText('', totalWidth));
+    const grouped = Object.values(groupedMap) as any[];
+
+    // Render grouped items; each IMEI becomes one line but products stay grouped consecutively
+    let runningIndex = 0;
+    grouped.forEach(group => {
+      for (let i = 0; i < group.imeis.length; i++) {
+        runningIndex += 1;
+        const snoStr = padText(String(runningIndex), snoWidth, 'left');
+        let productDesc = group.productName || '';
+        if (group.brandName) {
+          productDesc += ` (${group.brandName}`;
+          if (group.model) productDesc += ` ${group.model}`;
+          productDesc += ')';
+        }
+        if (group.storage) productDesc += ` ${group.storage}`;
+        const colorValue = group.imeis[i].color || getProductById(group.productId)?.color;
+        if (colorValue) productDesc += ` [${colorValue}]`;
+        if (group.imeis[i].imei) productDesc += ` IMEI:${group.imeis[i].imei}`;
+
+        const nameLines = wrapText(productDesc, productWidth);
+        const qtyStr = padText('1', qtyWidth, 'right');
+        const totalStr = padText(formatAmount(group.unitCost), totalWidth, 'right');
+
+        lines.push(snoStr + separator + padText(nameLines[0] || '', productWidth, 'left') + separator + qtyStr + separator + totalStr);
+        for (let j = 1; j < nameLines.length; j++) {
+          lines.push(padText('', snoWidth) + separator + padText(nameLines[j], productWidth, 'left') + separator + padText('', qtyWidth) + separator + padText('', totalWidth));
+        }
       }
     });
     lines.push('-'.repeat(printWidth));
 
     // Summary Calculations
-    const totalQty = sale.items.reduce((sum, item) => sum + item.quantity, 0);
+    const totalQty = purchase.items.reduce((sum, item) => sum + item.quantity, 0);
     lines.push(padText('Total Qty:', 15) + padText(String(totalQty), printWidth - 15, 'right'));
-    lines.push(padText('Subtotal:', 15) + padText(formatAmount(sale.subtotal), printWidth - 15, 'right'));
-    if (sale.discount > 0) {
-      lines.push(padText('Discount:', 15) + padText(`-${formatAmount(sale.discount)}`, printWidth - 15, 'right'));
+    lines.push(padText('Subtotal:', 15) + padText(formatAmount(purchase.subtotal), printWidth - 15, 'right'));
+    if (purchase.discount > 0) {
+      lines.push(padText('Discount:', 15) + padText(`-${formatAmount(purchase.discount)}`, printWidth - 15, 'right'));
+    }
+    if (purchase.shipping > 0) {
+      lines.push(padText('Shipping:', 15) + padText(formatAmount(purchase.shipping), printWidth - 15, 'right'));
     }
 
     // Net Total (prominent in === borders)
     lines.push('='.repeat(printWidth));
-    lines.push(padText('NET TOTAL:', 15) + padText(formatAmount(sale.grandTotal), printWidth - 15, 'right'));
+    lines.push(padText('NET TOTAL:', 15) + padText(formatAmount(purchase.grandTotal), printWidth - 15, 'right'));
     lines.push('='.repeat(printWidth));
 
     // Paid & Due
-    const dueAmount = Math.max(0, sale.grandTotal - sale.paidAmount);
-    lines.push(padText('Received:', 15) + padText(formatAmount(sale.paidAmount), printWidth - 15, 'right'));
+    const dueAmount = Math.max(0, purchase.grandTotal - purchase.paidAmount);
+    lines.push(padText('Received:', 15) + padText(formatAmount(purchase.paidAmount), printWidth - 15, 'right'));
     lines.push(padText('Due:', 15) + padText(formatAmount(dueAmount), printWidth - 15, 'right'));
-    if (sale.changeDue > 0) {
-      lines.push(padText('Change:', 15) + padText(formatAmount(sale.changeDue), printWidth - 15, 'right'));
-    }
-
-    // Terms (Printed first)
-    if (termsLines.length > 0) {
-      termsLines.forEach(line => {
-        if (line.trim() === '') {
-          lines.push('');
-        } else {
-          lines.push(centerText(line, printWidth));
-        }
-      });
-    }
 
     // Thank you Footer
     if (footerLines.length > 0) {
@@ -268,7 +291,7 @@ export default function InvoiceReceipt({
         }
       });
     } else {
-      lines.push(centerText('Thank You For Purchase', printWidth));
+      lines.push(centerText('Thank You For Your Business', printWidth));
     }
 
     return lines;
@@ -276,20 +299,8 @@ export default function InvoiceReceipt({
 
   // Render A4 invoice layout
   if (layout === 'a4') {
-    const invBalance = sale.grandTotal - sale.paidAmount;
-    
-    // Previous balance calculation: all sales of this customer created strictly before this sale
-    const customerSales = sale.customerId
-      ? sales.filter(s => s.customerId === sale.customerId && s.id !== sale.id && new Date(s.createdAt).getTime() < new Date(sale.createdAt).getTime() && s.status !== 'cancelled')
-      : [];
-    const previousBalance = customerSales.reduce((sum, s) => sum + (s.grandTotal - s.paidAmount), 0);
-    const currentBalance = previousBalance + invBalance;
-
-    const formattedTime = formatDate(sale.createdAt, 'hh:mm a');
-
-    // Calculate general discount percent of the sale
-    const discountPercent = sale.subtotal > 0 ? (sale.discount / sale.subtotal) * 100 : 0;
-    const discPercentStr = discountPercent > 0 ? `${discountPercent.toFixed(2).replace(/\.00$/, '')}%` : '0.00%';
+    const formattedTime = formatDate(purchase.createdAt, 'hh:mm a');
+    const groupedA4 = groupPurchaseItems(purchase.items || []);
 
     return (
       <div
@@ -323,42 +334,44 @@ export default function InvoiceReceipt({
           </div>
           <div className="pt-2">
             <span className="text-lg font-bold border-b-2 border-black inline-block px-4 pb-0.5 uppercase tracking-wide">
-              Sale Invoice
+              Purchase Order
             </span>
           </div>
         </div>
 
-        {/* Customer & Invoice Meta Box */}
+        {/* Supplier & Invoice Meta Box */}
         <table className="w-full border-collapse border border-black text-xs font-semibold my-4">
           <tbody>
             <tr className="border-b border-black">
               <td className="p-2 border-r border-black w-[60%] text-left">
-                <span className="font-normal text-gray-500">Customer : </span>
-                <span className="font-bold text-gray-900">{customerName}</span>
+                <span className="font-normal text-gray-500">Supplier : </span>
+                <span className="font-bold text-gray-900">{purchase.supplierName}</span>
               </td>
               <td className="p-2 w-[40%] text-left">
-                <span className="font-normal text-gray-500">Inv # : </span>
-                <span className="font-bold text-gray-900">{sale.invoiceNumber}</span>
+                <span className="font-normal text-gray-500">PO # : </span>
+                <span className="font-bold text-gray-900">{purchase.poNumber}</span>
               </td>
             </tr>
             <tr className="border-b border-black">
               <td className="p-2 border-r border-black text-left">
                 <span className="font-normal text-gray-500">Address : </span>
-                <span className="text-gray-900">{customerAddress || '___________________________'}</span>
+                <span className="text-gray-900">{supplierAddress || '___________________________'}</span>
               </td>
               <td className="p-2 text-left">
-                <span className="font-normal text-gray-500">Ref # : </span>
-                <span className="text-gray-900">________</span>
+                <span className="font-normal text-gray-500">Date : </span>
+                <span className="text-gray-900">{formatDate(purchase.createdAt, 'dd/MM/yyyy')}</span>
               </td>
             </tr>
             <tr>
               <td className="p-2 border-r border-black text-left">
                 <span className="font-normal text-gray-500">Phone : </span>
-                <span className="text-gray-900">{customerPhone || '____________'}</span>
+                <span className="text-gray-900">{supplierPhone || '____________'}</span>
               </td>
               <td className="p-2 text-left">
-                <span className="font-normal text-gray-500">Date : </span>
-                <span className="text-gray-900">{formatDate(sale.createdAt, 'dd/MM/yyyy')}</span>
+                <span className="font-normal text-gray-500">Status : </span>
+                <span className={`font-bold ${purchase.status === 'received' ? 'text-green-600' : purchase.status === 'pending' ? 'text-yellow-600' : 'text-gray-600'}`}>
+                  {purchase.status.toUpperCase()}
+                </span>
               </td>
             </tr>
           </tbody>
@@ -370,48 +383,46 @@ export default function InvoiceReceipt({
             <tr className="bg-gray-100 font-bold border-b border-black text-xs">
               <th className="border border-black p-2 text-center w-10">Sr#</th>
               <th className="border border-black p-2 text-left">Item Description</th>
+              <th className="border border-black p-2 text-center w-20">Color</th>
               <th className="border border-black p-2 text-center w-12">Qty</th>
-              <th className="border border-black p-2 text-right w-20">Rate</th>
-              <th className="border border-black p-2 text-right w-16">Disc. %</th>
-              <th className="border border-black p-2 text-right w-20">Net Rate</th>
-              <th className="border border-black p-2 text-right w-24">Value</th>
+              <th className="border border-black p-2 text-right w-20">Cost</th>
+              <th className="border border-black p-2 text-right w-24">Total</th>
             </tr>
           </thead>
           <tbody>
-            {sale.items.map((item, index) => {
-              const rate = item.unitPrice;
-              const netRate = rate * (1 - discountPercent / 100);
-              const value = item.quantity * netRate;
-
-              return (
-                <tr key={index} className="text-[12px] hover:bg-gray-50">
-                  <td className="border border-black p-2 text-center">{index + 1}</td>
-                  <td className="border border-black p-2 text-left font-bold uppercase">
-                    <div>{item.productName}</div>
-                    {item.imei && <div className="text-[10px] text-gray-500 font-mono mt-0.5">IMEI: {item.imei}</div>}
-                  </td>
-                  <td className="border border-black p-2 text-center">{item.quantity}</td>
-                  <td className="border border-black p-2 text-right">{formatCurrency(rate)}</td>
-                  <td className="border border-black p-2 text-right">{discPercentStr}</td>
-                  <td className="border border-black p-2 text-right">{formatCurrency(netRate)}</td>
-                  <td className="border border-black p-2 text-right font-semibold">{formatCurrency(value)}</td>
-                </tr>
-              );
-            })}
+            {groupedA4.flatMap((group, index) => group.imeis.map((im: any, i: number) => (
+              <tr key={`${index}-${i}`} className="text-[12px] hover:bg-gray-50">
+                <td className="border border-black p-2 text-center">{groupedA4.slice(0, index).reduce((sum: number, g: any) => sum + g.imeis.length, 0) + i + 1}</td>
+                <td className="border border-black p-2 text-left">
+                  <div className="font-bold uppercase">{group.productName}</div>
+                  {group.brandName && <div className="text-[10px] text-gray-600 mt-0.5">Brand: {group.brandName}</div>}
+                  {group.model && <div className="text-[10px] text-gray-600">Model: {group.model}</div>}
+                  {(im.ram && im.storage) ? (
+                    <div className="text-[10px] text-blue-700 font-bold">Variant: {im.ram} / {im.storage}</div>
+                  ) : (
+                    group.storage && <div className="text-[10px] text-gray-600">Storage: {group.storage}</div>
+                  )}
+                  {im.imei && <div className="text-[10px] text-gray-700 font-mono font-bold mt-1 border-t pt-1 bg-gray-50 p-1">IMEI: {im.imei}</div>}
+                </td>
+                <td className="border border-black p-2 text-left">{im.color || getProductById(group.productId)?.color || '-'}</td>
+                <td className="border border-black p-2 text-center">1</td>
+                <td className="border border-black p-2 text-right">{formatCurrency(group.unitCost)}</td>
+                <td className="border border-black p-2 text-right font-semibold">{formatCurrency(group.unitCost)}</td>
+              </tr>
+            )))}
             {/* Total summary row */}
             <tr className="bg-gray-100 font-bold border-t border-black text-xs">
-              <td className="border border-black p-2 text-center font-bold" colSpan={2}>
+              <td className="border border-black p-2 text-center font-bold" colSpan={3}>
                 Total :
               </td>
               <td className="border border-black p-2 text-center">
-                {sale.items.reduce((sum, item) => sum + item.quantity, 0)}
+                {purchase.items.reduce((sum, item) => sum + item.quantity, 0)}
               </td>
               <td className="border border-black p-2 text-right">
-                {formatCurrency(sale.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0))}
+                —
               </td>
-              <td className="border border-black p-2 text-right">{discPercentStr}</td>
-              <td className="border border-black p-2 text-right font-bold" colSpan={2}>
-                {formatCurrency(sale.grandTotal)}
+              <td className="border border-black p-2 text-right font-bold">
+                {formatCurrency(purchase.grandTotal)}
               </td>
             </tr>
           </tbody>
@@ -419,19 +430,21 @@ export default function InvoiceReceipt({
 
         {/* Bottom Three Boxes Compartments */}
         <div className="grid grid-cols-3 border border-black border-t-0 text-xs font-semibold">
-          {/* Left Box: Balances */}
+          {/* Left Box: Status Info */}
           <div className="border-r border-black p-2 space-y-1 text-left">
             <div className="flex justify-between">
-              <span className="text-gray-500">Inv. Balance:</span>
-              <span>{formatCurrency(invBalance)}</span>
+              <span className="text-gray-500">PO Status:</span>
+              <span className={purchase.status === 'received' ? 'text-green-600' : purchase.status === 'pending' ? 'text-yellow-600' : 'text-gray-600'}>
+                {purchase.status.toUpperCase()}
+              </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Previous Balance:</span>
-              <span>{formatCurrency(previousBalance)}</span>
+              <span className="text-gray-500">Total Items:</span>
+              <span>{purchase.items.length}</span>
             </div>
-            <div className="flex justify-between border-t border-dashed border-gray-400 pt-1 font-bold">
-              <span className="text-gray-700">Current Balance:</span>
-              <span>{formatCurrency(currentBalance)}</span>
+            <div className="flex justify-between border-t border-dashed border-gray-400 pt-1">
+              <span className="text-gray-700">Total Qty:</span>
+              <span>{purchase.items.reduce((sum, item) => sum + item.quantity, 0)}</span>
             </div>
           </div>
           
@@ -440,7 +453,7 @@ export default function InvoiceReceipt({
             <div>
               <span className="text-gray-500 block mb-1">Amount in Words :</span>
               <span className="font-bold text-[11px] block leading-tight text-gray-850">
-                {numberToWords(sale.grandTotal)}
+                {numberToWords(purchase.grandTotal)}
               </span>
             </div>
           </div>
@@ -449,31 +462,32 @@ export default function InvoiceReceipt({
           <div className="p-2 space-y-1 text-left">
             <div className="flex justify-between">
               <span className="text-gray-500">Subtotal:</span>
-              <span>{formatCurrency(sale.subtotal)}</span>
+              <span>{formatCurrency(purchase.subtotal)}</span>
             </div>
-            {sale.discount > 0 && (
+            {purchase.discount > 0 && (
               <div className="flex justify-between text-red-600">
                 <span>Discount:</span>
-                <span>-{formatCurrency(sale.discount)}</span>
+                <span>-{formatCurrency(purchase.discount)}</span>
+              </div>
+            )}
+            {purchase.shipping > 0 && (
+              <div className="flex justify-between text-blue-600">
+                <span>Shipping:</span>
+                <span>+{formatCurrency(purchase.shipping)}</span>
               </div>
             )}
             <div className="flex justify-between border-t border-black pt-1 font-bold text-gray-900">
               <span>Net Total:</span>
-              <span>{formatCurrency(sale.grandTotal)}</span>
+              <span>{formatCurrency(purchase.grandTotal)}</span>
             </div>
             <div className="flex justify-between text-green-700">
               <span className="font-normal text-gray-500">Received:</span>
-              <span>{formatCurrency(sale.paidAmount)}</span>
+              <span>{formatCurrency(purchase.paidAmount)}</span>
             </div>
           </div>
         </div>
 
-        {/* Urdu Disclaimer Warranty Statement */}
-        <div className="text-center py-2 text-[13px] font-medium text-gray-800 leading-relaxed font-sans" style={{ direction: 'rtl' }}>
-          موبائل فون جس کمپنی کی وارنٹی میں ہو گا وہی کمپنی ذمہ دار ہو گی ۔ دوکاندار وارنٹی کلیم دینے کا پابند نہیں ہوگا
-        </div>
-
-        {/* User Manual Receipt Footer */}
+        {/* Footer */}
         {receiptSettings.footer && (
           <div className="text-center text-xs font-semibold text-gray-800 pt-2 border-t border-dashed border-gray-300">
             <MultilineText text={receiptSettings.footer} />
@@ -492,9 +506,9 @@ export default function InvoiceReceipt({
 
         {/* Bottom Metadata Line */}
         <div className="flex justify-between text-[10px] text-gray-400 border-t pt-2 mt-2">
-          <div>Created By: <span className="font-medium text-gray-600">{sale.createdBy || 'Administrator'}</span></div>
+          <div>Created At: <span className="font-medium text-gray-600">{formatDate(purchase.createdAt, 'dd/MM/yyyy hh:mm a')}</span></div>
           <div>Modified By: <span className="font-medium text-gray-600">—</span></div>
-          <div>Time: <span className="font-medium text-gray-600">{formattedTime}</span></div>
+          <div>Reference: <span className="font-medium text-gray-600">{purchase.reference || 'N/A'}</span></div>
         </div>
       </div>
     );
@@ -536,35 +550,37 @@ export default function InvoiceReceipt({
       </div>
 
       <div className="text-center py-2 border-y border-gray-200">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em]">Sale Invoice</p>
+        <p className="text-sm font-semibold uppercase tracking-[0.2em]">Purchase Order</p>
       </div>
 
       <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
         <div className="space-y-2">
           <div>
-            <p className="text-[10px] text-gray-500 uppercase tracking-wide">Customer</p>
-            <p className="font-semibold text-gray-900">{customerName}</p>
+            <p className="text-[10px] text-gray-500 uppercase tracking-wide">Supplier</p>
+            <p className="font-semibold text-gray-900">{purchase.supplierName}</p>
           </div>
-          {customerPhone && (
+          {supplierPhone && (
             <div>
               <p className="text-[10px] text-gray-500 uppercase tracking-wide">Phone</p>
-              <p className="text-gray-900">{customerPhone}</p>
+              <p className="text-gray-900">{supplierPhone}</p>
             </div>
           )}
         </div>
 
         <div className="space-y-2 text-right">
           <div>
-            <p className="text-[10px] text-gray-500 uppercase tracking-wide">Inv #</p>
-            <p className="font-semibold text-gray-900">{sale.invoiceNumber}</p>
+            <p className="text-[10px] text-gray-500 uppercase tracking-wide">PO #</p>
+            <p className="font-semibold text-gray-900">{purchase.poNumber}</p>
           </div>
           <div>
             <p className="text-[10px] text-gray-500 uppercase tracking-wide">Date</p>
-            <p className="text-gray-900">{formatDate(sale.createdAt, shopSettings.dateFormat)}</p>
+            <p className="text-gray-900">{formatDate(purchase.createdAt, shopSettings.dateFormat)}</p>
           </div>
           <div>
-            <p className="text-[10px] text-gray-500 uppercase tracking-wide">Payment</p>
-            <p className="text-gray-900 uppercase">{paymentLabel}</p>
+            <p className="text-[10px] text-gray-500 uppercase tracking-wide">Status</p>
+            <p className={`text-gray-900 uppercase font-semibold ${purchase.status === 'received' ? 'text-green-600' : purchase.status === 'pending' ? 'text-yellow-600' : 'text-gray-600'}`}>
+              {purchase.status}
+            </p>
           </div>
         </div>
       </div>
@@ -575,81 +591,71 @@ export default function InvoiceReceipt({
             <tr className="text-gray-500 font-semibold border-b border-gray-100">
               <th className="text-left pb-1.5 w-8">Sr#</th>
               <th className="text-left pb-1.5">Item Description</th>
+              <th className="text-left pb-1.5 w-20">Color</th>
               <th className="text-right pb-1.5 w-12">Qty</th>
-              <th className="text-right pb-1.5 w-16">Rate</th>
-              <th className="text-right pb-1.5 w-16">Value</th>
+              <th className="text-right pb-1.5 w-16">Cost</th>
+              <th className="text-right pb-1.5 w-16">Total</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {sale.items.map((item, index) => (
-              <tr key={index} className="text-gray-700">
-                <td className="py-1.5 align-top">{index + 1}</td>
-                <td className="py-1.5 align-top break-words">
-                  <div className="font-semibold text-gray-900">{item.productName}</div>
-                  {item.imei && <div className="text-[10px] text-gray-500 font-mono">IMEI: {item.imei}</div>}
-                </td>
-                <td className="py-1.5 align-top text-right">{item.quantity}</td>
-                <td className="py-1.5 align-top text-right">{formatCurrency(item.unitPrice)}</td>
-                <td className="py-1.5 align-top text-right font-medium">{formatCurrency(item.total)}</td>
-              </tr>
-            ))}
+            {
+              (() => {
+                const groupedScreen = groupPurchaseItems(purchase.items || []);
+                return groupedScreen.flatMap((group, index) => group.imeis.map((im: any, i: number) => (
+                  <tr key={`${index}-${i}`} className="text-gray-700">
+                    <td className="py-1.5 align-top">{groupedScreen.slice(0, index).reduce((sum: number, g: any) => sum + g.imeis.length, 0) + i + 1}</td>
+                    <td className="py-1.5 align-top break-words">
+                      <div className="font-semibold text-gray-900">{group.productName}</div>
+                      {group.brandName && <div className="text-[10px] text-gray-600">Brand: {group.brandName}</div>}
+                      {group.model && <div className="text-[10px] text-gray-600">Model: {group.model}</div>}
+                      {group.storage && <div className="text-[10px] text-gray-600">Storage: {group.storage}</div>}
+                      {im.imei && <div className="text-[10px] text-gray-800 font-mono font-bold mt-1 bg-gray-50 p-1 rounded">IMEI: {im.imei}</div>}
+                    </td>
+                    <td className="py-1.5 align-top text-left">{im.color || getProductById(group.productId)?.color || findByImei(im.imei || '')?.color || '-'}</td>
+                    <td className="py-1.5 align-top text-right">1</td>
+                    <td className="py-1.5 align-top text-right">{formatCurrency(group.unitCost)}</td>
+                    <td className="py-1.5 align-top text-right font-medium">{formatCurrency(group.unitCost)}</td>
+                  </tr>
+                )));
+              })()
+            }
           </tbody>
         </table>
       </div>
 
       {/* Totals Summary */}
-      <div className="space-y-1.5 text-xs text-gray-600">
-        <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-          <span className="font-medium">Total Qty:</span>
-          <span className="font-medium text-right text-gray-900">{sale.items.reduce((sum, item) => sum + item.quantity, 0)}</span>
-
-          <span className="font-medium">Subtotal:</span>
-          <span className="font-medium text-right text-gray-900">{formatCurrency(sale.subtotal)}</span>
-
-          {sale.discount > 0 && (
-            <>
-              <span className="font-medium text-red-600">Discount:</span>
-              <span className="text-right text-red-600">-{formatCurrency(sale.discount)}</span>
-            </>
-          )}
+      <div className="space-y-1 text-xs border-t pt-3">
+        <div className="flex justify-between">
+          <span className="text-gray-600">Subtotal:</span>
+          <span>{formatCurrency(purchase.subtotal)}</span>
         </div>
-
-        <div className="border-t border-b border-gray-300 py-2 my-2 flex justify-between font-bold text-sm text-gray-900">
+        {purchase.discount > 0 && (
+          <div className="flex justify-between text-red-600">
+            <span>Discount:</span>
+            <span>-{formatCurrency(purchase.discount)}</span>
+          </div>
+        )}
+        {purchase.shipping > 0 && (
+          <div className="flex justify-between text-blue-600">
+            <span>Shipping:</span>
+            <span>+{formatCurrency(purchase.shipping)}</span>
+          </div>
+        )}
+        <div className="flex justify-between font-semibold text-base border-t pt-2">
           <span>Net Total:</span>
-          <span>{formatCurrency(sale.grandTotal)}</span>
+          <span className="text-orange-500">{formatCurrency(purchase.grandTotal)}</span>
         </div>
-
-        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-600">
-          <span className="font-medium">Received:</span>
-          <span className="text-right font-medium text-gray-900">{formatCurrency(sale.paidAmount)}</span>
-
-          <span className="font-medium">Due:</span>
-          <span className="text-right font-semibold text-amber-600">{formatCurrency(Math.max(0, sale.grandTotal - sale.paidAmount))}</span>
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-600">Paid:</span>
+          <span>{formatCurrency(purchase.paidAmount)}</span>
         </div>
-
-        {sale.changeDue > 0 && (
-          <div className="flex justify-between text-green-600 font-medium text-xs">
-            <span>Change:</span>
-            <span>{formatCurrency(sale.changeDue)}</span>
+        {purchase.grandTotal - purchase.paidAmount > 0 && (
+          <div className="flex justify-between text-sm text-red-600 font-semibold">
+            <span>Due:</span>
+            <span>{formatCurrency(purchase.grandTotal - purchase.paidAmount)}</span>
           </div>
         )}
       </div>
-
-      <div className="h-4" />
-
-      {/* Footer/Terms */}
-      {(receiptSettings.footer || receiptSettings.termsAndConditions) && (
-        <div className="text-center text-[11px] text-gray-500 border-t pt-3 space-y-2"> 
-          {receiptSettings.termsAndConditions && (
-            <MultilineText text={receiptSettings.termsAndConditions} className="leading-relaxed italic" />
-          )}
-          {receiptSettings.footer ? (
-            <MultilineText text={receiptSettings.footer} className="font-semibold text-gray-800 text-xs mt-1" />
-          ) : (
-            <p className="font-semibold text-gray-800 text-xs mt-1">Thank You For Purchase</p>
-          )}
-        </div>
-      )}
     </div>
   );
 }

@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useProductStore } from '@/stores/productStore';
 import { useCartStore } from '@/stores/cartStore';
 import { useCustomerStore } from '@/stores/customerStore';
 import { useSaleStore } from '@/stores/saleStore';
 import { useSettingsStore, type PaymentMethods } from '@/stores/settingsStore';
+import { useImeiStore } from '@/stores/imeiStore';
 type PaymentMethodKey = keyof PaymentMethods;
 import InvoiceReceipt from '@/components/shared/InvoiceReceipt';
 import { useToast } from '@/hooks/useToast';
@@ -11,6 +12,7 @@ import { usePrint } from '@/hooks/usePrint';
 import { formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -26,6 +28,7 @@ import { useAuthStore } from '@/stores/authStore';
 export default function Pos() {
   const { products, categories, loadData: loadProducts } = useProductStore();
   const { customers, loadData: loadCustomers } = useCustomerStore();
+  const { loadData: loadImeis, findByImei, getAvailableByProduct } = useImeiStore();
   const currentUserId = useAuthStore(s => s.user?.id);
   const addSale = useSaleStore(s => s.addSale);
   const { paymentMethods, loadSettings, shopSettings, receiptSettings, taxSettings } = useSettingsStore();
@@ -41,7 +44,6 @@ export default function Pos() {
   const setCustomer = useCartStore(s => s.setCustomer);
   const subtotal = useCartStore(s => s.subtotal);
   const discountAmount = useCartStore(s => s.discountAmount);
-  const taxAmount = useCartStore(s => s.taxAmount);
   const grandTotal = useCartStore(s => s.grandTotal);
   const itemCount = useCartStore(s => s.itemCount);
 
@@ -60,12 +62,14 @@ export default function Pos() {
   const [selectedCustomerPhone, setSelectedCustomerPhone] = useState('');
   const [selectedCustomerAddress, setSelectedCustomerAddress] = useState('');
   const [discountInput, setDiscountInput] = useState('');
+  const [imeiSelectProduct, setImeiSelectProduct] = useState<Product | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadProducts();
     loadCustomers();
     loadSettings();
+    loadImeis();
   }, []);
 
   // Keyboard shortcuts
@@ -104,37 +108,69 @@ export default function Pos() {
     return result;
   }, [products, activeCategory, searchQuery]);
 
-  const handleAddToCart = (product: Product) => {
-    if (product.stockQuantity <= 0) {
-      toast.error('Out of stock', `${product.name} is currently out of stock`);
-      return;
+  const handleAddToCart = (product: Product, imei?: string) => {
+    if (imei) {
+      addItem(product, imei);
+      toast.success('Added to cart', `${product.name} (IMEI: ${imei})`);
+    } else {
+      const available = getAvailableByProduct(product.id);
+      if (available.length === 0) {
+        toast.error('Out of stock', `${product.name} has no available IMEIs`);
+        return;
+      }
+      setImeiSelectProduct(product);
     }
-    addItem(product);
-    toast.success('Added to cart', product.name);
   };
 
-  const findProductByCode = (code: string) => {
+  const findProductByCode = (code: string): { product: Product; imei?: string; error?: string } | undefined => {
     const normalized = code.trim();
     if (!normalized) return undefined;
-    return products.find(product =>
-      product.barcode === normalized ||
-      product.imei === normalized ||
-      product.sku.toLowerCase() === normalized.toLowerCase()
+
+    const imeiRecord = findByImei(normalized);
+    if (imeiRecord) {
+      if (imeiRecord.status === 'available') {
+        const product = products.find(p => p.id === imeiRecord.productId);
+        if (product) return { product, imei: imeiRecord.imei };
+      } else {
+        return {
+          product: products.find(p => p.id === imeiRecord.productId)!,
+          imei: imeiRecord.imei,
+          error: `IMEI ${normalized} is marked as sold`
+        };
+      }
+    }
+
+    const product = products.find(p =>
+      p.barcode === normalized ||
+      p.sku.toLowerCase() === normalized.toLowerCase()
     );
+    if (product) return { product };
+    return undefined;
   };
 
   const handleScanInput = () => {
-    const product = findProductByCode(searchQuery);
-    if (!product) return;
-    handleAddToCart(product);
+    if (!searchQuery.trim()) return;
+    const result = findProductByCode(searchQuery);
+    if (result) {
+      if (result.error) {
+        toast.error('IMEI Unavailable', result.error);
+      } else {
+        handleAddToCart(result.product, result.imei);
+      }
+    }
     setSearchQuery('');
     setTimeout(() => searchRef.current?.focus(), 0);
   };
 
   useEffect(() => {
-    const exactProduct = findProductByCode(searchQuery);
-    if (exactProduct && searchQuery.trim().length > 0) {
-      handleAddToCart(exactProduct);
+    if (!searchQuery.trim()) return;
+    const result = findProductByCode(searchQuery);
+    if (result && (result.imei || result.error)) {
+      if (result.error) {
+        toast.error('IMEI Unavailable', result.error);
+      } else {
+        handleAddToCart(result.product, result.imei);
+      }
       setSearchQuery('');
       setTimeout(() => searchRef.current?.focus(), 0);
     }
@@ -194,7 +230,7 @@ export default function Pos() {
           })),
           subtotal: subtotal(),
           discount: discountAmount(),
-          tax: taxAmount(),
+          tax: 0,
           grandTotal: total,
           paidAmount: paid,
           changeDue: change,
@@ -227,14 +263,6 @@ export default function Pos() {
     setCheckoutNotes('');
     setDiscountInput('');
   };
-
-  const taxLabel = taxSettings.name
-    ? taxSettings.rate > 0
-      ? `${taxSettings.name} Tax (${taxSettings.rate}%)`
-      : `${taxSettings.name} Tax`
-    : taxSettings.rate > 0
-      ? `Tax (${taxSettings.rate}%)`
-      : 'Tax';
 
   const changeDue = (parseFloat(paidAmount) || 0) - grandTotal();
   const activeCategories = categories.filter(c => c.status === 'active' && c.showInPos);
@@ -423,35 +451,49 @@ export default function Pos() {
           ) : (
             <div className="space-y-2">
               {cartItems.map(item => (
-                <div key={item.productId} className="bg-white rounded-lg border border-gray-200 p-3">
+                <div key={item.productId + '-' + item.imei} className="bg-white rounded-lg border border-gray-200 p-3">
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-800 truncate">{item.productName}</p>
-                      <p className="text-xs text-gray-500">{formatCurrency(item.unitPrice)} each</p>
+                      <div className="text-xs text-gray-500 mt-0.5">
+                        {item.brandName && <span className="font-medium text-gray-700">{item.brandName}</span>}
+                        {item.model && <span className="ml-1">{item.model}</span>}
+                        {item.storage && <span className="ml-2">· {item.storage}</span>}
+                      </div>
+                      {item.imei && (
+                        <p className="text-xs text-orange-600 font-mono mt-0.5">
+                          IMEI: {item.imei} {item.color ? `(${item.color})` : ''}
+                        </p>
+                      )}
+                      <p className="text-xs text-gray-500 mt-0.5">{formatCurrency(item.unitPrice)} each</p>
                     </div>
                     <button
-                      onClick={() => removeItem(item.productId)}
+                      onClick={() => removeItem(item.productId, item.imei)}
                       className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500"
                     >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
                   <div className="flex items-center justify-between mt-2">
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => updateQuantity(item.productId, item.quantity - 1)}
-                        className="w-7 h-7 flex items-center justify-center rounded border border-gray-200 hover:bg-gray-50"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      <span className="w-8 text-center text-sm font-semibold">{item.quantity}</span>
-                      <button
-                        onClick={() => updateQuantity(item.productId, item.quantity + 1)}
-                        className="w-7 h-7 flex items-center justify-center rounded border border-orange-200 text-orange-500 hover:bg-orange-50"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                    </div>
+                    {item.imei ? (
+                      <span className="text-[11px] text-gray-500 bg-gray-50 border px-2 py-0.5 rounded-full font-medium">Single Device (Qty: 1)</span>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => updateQuantity(item.productId, item.quantity - 1, item.imei)}
+                          className="w-7 h-7 flex items-center justify-center rounded border border-gray-200 hover:bg-gray-50"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+                        <span className="w-8 text-center text-sm font-semibold">{item.quantity}</span>
+                        <button
+                          onClick={() => updateQuantity(item.productId, item.quantity + 1, item.imei)}
+                          className="w-7 h-7 flex items-center justify-center rounded border border-orange-200 text-orange-500 hover:bg-orange-50"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
                     <p className="text-sm font-semibold text-gray-800">{formatCurrency(item.total)}</p>
                   </div>
                 </div>
@@ -489,10 +531,6 @@ export default function Pos() {
                 <span>-{formatCurrency(discountAmount())}</span>
               </div>
             )}
-            <div className="flex justify-between">
-              <span className="text-gray-600">{taxLabel}</span>
-              <span className="font-medium">{formatCurrency(taxAmount())}</span>
-            </div>
             <div className="flex justify-between pt-2 border-t border-gray-100">
               <span className="font-semibold text-gray-800">Grand Total</span>
               <span className="text-lg font-bold text-orange-500">{formatCurrency(grandTotal())}</span>
@@ -512,8 +550,9 @@ export default function Pos() {
         </div>
       </div>
 
-      {/* Checkout Modal */}
+      {/* Checkout Dialog */}
       <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
+        {/* ... (dialog contents are kept) */}
         <DialogContent className="sm:max-w-[480px]">
           {!saleComplete ? (
             <>
@@ -610,12 +649,10 @@ export default function Pos() {
               {completedSale && (
                 <div className="hidden">
                   <InvoiceReceipt
-                    id="receipt"
-                    sale={completedSale}
-                    shopSettings={shopSettings}
-                    receiptSettings={receiptSettings}
-                    taxName={taxSettings.name}
-                    taxRate={taxSettings.rate}
+                     id="receipt"
+                     sale={completedSale}
+                     shopSettings={shopSettings}
+                     receiptSettings={receiptSettings}
                   />
                 </div>
               )}
@@ -635,6 +672,65 @@ export default function Pos() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* IMEI Selection Dialog */}
+      <Dialog open={!!imeiSelectProduct} onOpenChange={(open) => { if (!open) setImeiSelectProduct(null); }}>
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle>Select IMEI for {imeiSelectProduct?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-3">
+            <div>
+              <Label htmlFor="dialog-imei-scan">Scan IMEI</Label>
+              <Input
+                id="dialog-imei-scan"
+                placeholder="Scan device IMEI..."
+                className="mt-1 font-mono text-sm"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const val = e.currentTarget.value.trim();
+                    if (val && imeiSelectProduct) {
+                      const imeiRecord = findByImei(val);
+                      if (imeiRecord && imeiRecord.productId === imeiSelectProduct.id && imeiRecord.status === 'available') {
+                        handleAddToCart(imeiSelectProduct, imeiRecord.imei);
+                        setImeiSelectProduct(null);
+                      } else if (imeiRecord && imeiRecord.status === 'sold') {
+                        toast.error('IMEI Sold', `IMEI ${val} is already sold.`);
+                      } else {
+                        toast.error('Invalid IMEI', `IMEI ${val} does not match this product or is not available.`);
+                      }
+                      e.currentTarget.value = '';
+                    }
+                  }
+                }}
+              />
+            </div>
+            
+            <div>
+              <Label>Available IMEIs ({imeiSelectProduct ? getAvailableByProduct(imeiSelectProduct.id).length : 0})</Label>
+              <div className="mt-2 border rounded-md max-h-[220px] overflow-y-auto divide-y">
+                {imeiSelectProduct && getAvailableByProduct(imeiSelectProduct.id).map(record => (
+                  <button
+                    key={record.id}
+                    onClick={() => {
+                      handleAddToCart(imeiSelectProduct, record.imei);
+                      setImeiSelectProduct(null);
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-orange-50 hover:text-orange-600 transition-colors font-mono flex items-center justify-between"
+                  >
+                    <span>{record.imei}</span>
+                    <span className="text-[10px] bg-green-50 text-green-700 px-2 py-0.5 rounded-full font-sans font-medium">Available</span>
+                  </button>
+                ))}
+                {imeiSelectProduct && getAvailableByProduct(imeiSelectProduct.id).length === 0 && (
+                  <p className="p-3 text-sm text-gray-500 text-center">No available IMEIs for this device</p>
+                )}
+              </div>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

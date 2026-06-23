@@ -1,19 +1,38 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSupplierStore } from '@/stores/supplierStore';
 import { useProductStore } from '@/stores/productStore';
+import { useImeiStore } from '@/stores/imeiStore';
+import { useSettingsStore } from '@/stores/settingsStore';
 import { useToast } from '@/hooks/useToast';
 import PageHeader from '@/components/shared/PageHeader';
 import StatusBadge from '@/components/shared/StatusBadge';
+import PurchaseInvoiceReceipt from '@/components/shared/PurchaseInvoiceReceipt';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { formatCurrency, formatDate, generatePONumber } from '@/lib/utils';
-import { Plus, Search, Eye, Trash2, ShoppingBag, CheckCircle2 } from 'lucide-react';
+import { formatCurrency, formatDate } from '@/lib/utils';
+import { Plus, Search, Eye, Trash2, Smartphone, CheckCircle2, Printer, Palette, Calendar, Hash, FileText } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+
+// Define the PurchaseItem structure inside the page
+interface ScannedPurchaseItem {
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitCost: number;
+  total: number;
+  imei: string;
+  color?: string;
+  storage?: string;
+  ram?: string;
+  brandName?: string;
+  model?: string;
+}
 
 export default function Purchases() {
   const { purchases, suppliers, loadData: loadSuppliers, addPurchase, updatePurchase, deletePurchase } = useSupplierStore();
-  const { products, loadData: loadProducts } = useProductStore();
+  const { products, brands, loadData: loadProducts } = useProductStore();
+  const { loadData: loadImeis, imeis } = useImeiStore();
   const toast = useToast();
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -21,16 +40,35 @@ export default function Purchases() {
 
   // New purchase form state
   const [supplierId, setSupplierId] = useState('');
-  const [items, setItems] = useState<{ productId: string; quantity: number; unitCost: number; total: number }[]>([{ productId: '', quantity: 1, unitCost: 0, total: 0 }]);
+  const [invoiceNumber, setInvoiceNumber] = useState('');
+  const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [scannedItems, setScannedItems] = useState<ScannedPurchaseItem[]>([]);
   const [scanQuery, setScanQuery] = useState('');
+  const [scanError, setScanError] = useState('');
   const scanRef = useRef<HTMLInputElement | null>(null);
-  const [taxRate, setTaxRate] = useState(18);
 
-  useEffect(() => { loadSuppliers(); loadProducts(); }, []);
+  useEffect(() => {
+    loadSuppliers();
+    loadProducts();
+    loadImeis();
+  }, []);
 
-  const filtered = useMemo(() => {
+  useEffect(() => {
+    if (modalOpen) {
+      setTimeout(() => scanRef.current?.focus(), 0);
+    }
+  }, [modalOpen]);
+
+  const filteredPurchases = useMemo(() => {
     let result = [...purchases];
-    if (search) result = result.filter(p => p.poNumber.toLowerCase().includes(search.toLowerCase()) || p.supplierName.toLowerCase().includes(search.toLowerCase()));
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter(p =>
+        p.poNumber.toLowerCase().includes(q) ||
+        p.supplierName.toLowerCase().includes(q) ||
+        (p.reference && p.reference.toLowerCase().includes(q))
+      );
+    }
     return result;
   }, [purchases, search]);
 
@@ -41,212 +79,486 @@ export default function Purchases() {
     paid: purchases.filter(p => p.status === 'received').length,
   }), [purchases]);
 
-  const addItemRow = () => setItems([...items, { productId: '', quantity: 1, unitCost: 0, total: 0 }]);
-  const removeItemRow = (idx: number) => setItems(items.filter((_, i) => i !== idx));
-  const updateItem = (idx: number, field: string, value: unknown) => {
-    const newItems = [...items];
-    (newItems[idx] as Record<string, unknown>)[field] = value;
-    if (field === 'productId') {
-      const prod = products.find(p => p.id === value);
-      if (prod) newItems[idx].unitCost = prod.costPrice;
+  const groupedScannedItems = useMemo(() => {
+    const groups: Record<string, {
+      productId: string;
+      productName: string;
+      brandName?: string;
+      model?: string;
+      storage?: string;
+      unitCost: number;
+      colors: Record<string, { imei: string; ram?: string; storage?: string }[]>; // color -> list of IMEIs
+      totalUnits: number;
+    }> = {};
+
+    scannedItems.forEach(item => {
+      const key = item.productId;
+      if (!groups[key]) {
+        groups[key] = {
+          productId: item.productId,
+          productName: item.productName,
+          brandName: item.brandName,
+          model: item.model,
+          storage: item.storage,
+          unitCost: item.unitCost,
+          colors: {},
+          totalUnits: 0
+        };
+      }
+      const c = item.color || 'Unspecified';
+      if (!groups[key].colors[c]) {
+        groups[key].colors[c] = [];
+      }
+      groups[key].colors[c].push({ imei: item.imei, ram: item.ram, storage: item.storage });
+      groups[key].totalUnits += 1;
+    });
+
+    return Object.values(groups);
+  }, [scannedItems]);
+
+  const handleScanSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const query = scanQuery.trim();
+    setScanQuery('');
+    setScanError('');
+
+    if (!query) return;
+
+    // Maintain input focus
+    scanRef.current?.focus();
+
+    // 1. Check if IMEI is already scanned in this invoice
+    if (scannedItems.some(item => item.imei === query)) {
+      setScanError(`IMEI "${query}" has already been scanned in this invoice.`);
+      toast.error('Duplicate scan', `IMEI "${query}" is already added.`);
+      return;
     }
-    setItems(newItems);
+
+    // 2. Search for the IMEI in the existing inventory
+    const inventoryImei = imeis.find(i => i.imei === query);
+    if (!inventoryImei) {
+      setScanError('IMEI not found. Please add this product in the Add Product module first.');
+      toast.error('IMEI not found', 'This IMEI does not exist in the inventory.');
+      return;
+    }
+
+    // 3. Find the product linked to this IMEI
+    const product = products.find(p => p.id === inventoryImei.productId);
+    if (!product) {
+      setScanError('Product linked to this IMEI was not found.');
+      return;
+    }
+
+    // Get brand name & clean model details
+    const brand = brands.find(b => b.id === product.brandId);
+    let modelName = product.name;
+    if (brand?.name && product.name.toLowerCase().startsWith(brand.name.toLowerCase())) {
+      modelName = product.name.substring(brand.name.length).trim();
+    }
+
+    // Add product to the invoice list
+    const newItem: ScannedPurchaseItem = {
+      productId: product.id,
+      productName: product.name,
+      quantity: 1,
+      unitCost: product.costPrice,
+      total: product.costPrice,
+      imei: query,
+      color: inventoryImei.color || product.color,
+      storage: inventoryImei.storage || product.storage,
+      ram: inventoryImei.ram || product.ram,
+      brandName: brand?.name || '—',
+      model: modelName
+    };
+
+    setScannedItems(prev => [newItem, ...prev]);
+    toast.success('IMEI added', query);
   };
 
-  const findProductByCode = (code: string) => {
-    const normalized = code.trim();
-    if (!normalized) return undefined;
-    return products.find(p => p.barcode === normalized || p.imei === normalized || p.sku.toLowerCase() === normalized.toLowerCase());
+  const removeImei = (imeiToRemove: string) => {
+    setScannedItems(prev => prev.filter(item => item.imei !== imeiToRemove));
+    toast.success('IMEI removed');
   };
 
-  const addScannedProduct = (code: string) => {
-    const prod = findProductByCode(code);
-    if (!prod) return false;
-    // add as a new row or increase qty if same product exists
-    const existingIdx = items.findIndex(i => i.productId === prod.id);
-    if (existingIdx >= 0) {
-      const newItems = [...items];
-      newItems[existingIdx].quantity += 1;
-      newItems[existingIdx].total = newItems[existingIdx].quantity * newItems[existingIdx].unitCost;
-      setItems(newItems);
-    } else {
-      setItems([...items, { productId: prod.id, quantity: 1, unitCost: prod.costPrice, total: prod.costPrice }]);
-    }
-    return true;
+  const updateProductGroupCost = (productId: string, newCost: number) => {
+    setScannedItems(prev =>
+      prev.map(item =>
+        item.productId === productId
+          ? { ...item, unitCost: newCost, total: newCost }
+          : item
+      )
+    );
   };
 
-  useEffect(() => {
-    // auto-add when scanQuery matches a product exactly
-    if (!scanQuery) return;
-    const prod = findProductByCode(scanQuery);
-    if (prod) {
-      addScannedProduct(scanQuery);
-      setScanQuery('');
-      setTimeout(() => scanRef.current?.focus(), 0);
-    }
-  }, [scanQuery]);
-
-  const subtotal = items.reduce((s, i) => s + i.quantity * i.unitCost, 0);
-  const tax = Math.round(subtotal * (taxRate / 100));
-  const grandTotal = subtotal + tax;
+  const subtotal = scannedItems.reduce((sum, item) => sum + item.unitCost, 0);
+  const grandTotal = subtotal;
 
   const handleCreatePurchase = () => {
-    if (!supplierId || items.some(i => !i.productId)) { toast.error('Please fill all fields'); return; }
+    if (!supplierId) {
+      toast.error('Please select a supplier');
+      return;
+    }
+    if (!invoiceNumber.trim()) {
+      toast.error('Please enter an invoice number');
+      return;
+    }
+    if (scannedItems.length === 0) {
+      toast.error('Please scan at least one IMEI');
+      return;
+    }
+
     const supplier = suppliers.find(s => s.id === supplierId);
     if (!supplier) return;
 
-    const purchaseItems = items.map(i => {
-      const prod = products.find(p => p.id === i.productId);
-      return { productId: i.productId, productName: prod?.name || '', quantity: i.quantity, unitCost: i.unitCost, total: i.total };
+    // Send items to store (each scanned IMEI is a single unit purchase_item)
+    const purchaseItems = scannedItems.map(item => ({
+      productId: item.productId,
+      productName: item.productName,
+      quantity: 1,
+      unitCost: item.unitCost,
+      total: item.unitCost,
+      imei: item.imei,
+      color: item.color,
+      storage: item.storage,
+      brandName: item.brandName,
+      model: item.model
+    }));
+
+    addPurchase({
+      supplierId,
+      supplierName: supplier.name,
+      items: purchaseItems,
+      subtotal,
+      tax: 0,
+      discount: 0,
+      shipping: 0,
+      grandTotal,
+      paidAmount: 0,
+      status: 'received', // Purchase is direct reception
+      reference: invoiceNumber,
+      notes: `Invoice Date: ${invoiceDate}`
     });
 
-    addPurchase({ supplierId, supplierName: supplier.name, items: purchaseItems, subtotal, tax, discount: 0, shipping: 0, grandTotal, paidAmount: 0, status: 'pending' });
-    toast.success('Purchase order created');
+    toast.success('Purchase invoice recorded successfully');
     setModalOpen(false);
     setSupplierId('');
-    setItems([{ productId: '', quantity: 1, unitCost: 0, total: 0 }]);
-    setTaxRate(18);
+    setInvoiceNumber('');
+    setScannedItems([]);
   };
 
   return (
-    <div>
-      <PageHeader title="Purchases" actions={<Button size="sm" className="bg-orange-500 hover:bg-orange-600" onClick={() => setModalOpen(true)}><Plus className="w-4 h-4 mr-1" />Add Purchase</Button>} />
+    <div className="space-y-6">
+      <PageHeader
+        title="Purchase Invoices"
+        subtitle="Record purchases and print professional bills using existing inventory IMEIs"
+        actions={
+          <Button className="bg-orange-500 hover:bg-orange-600 shadow-sm" onClick={() => setModalOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" /> New Purchase Invoice
+          </Button>
+        }
+      />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        <div className="bg-white rounded-lg border border-gray-200 p-3"><p className="text-lg font-bold">{stats.total}</p><p className="text-xs text-gray-500">Total Orders</p></div>
-        <div className="bg-white rounded-lg border border-gray-200 p-3"><p className="text-lg font-bold">{formatCurrency(stats.totalAmount)}</p><p className="text-xs text-gray-500">Total Amount</p></div>
-        <div className="bg-white rounded-lg border border-gray-200 p-3"><p className="text-lg font-bold text-yellow-600">{stats.pending}</p><p className="text-xs text-gray-500">Pending</p></div>
-        <div className="bg-white rounded-lg border border-gray-200 p-3"><p className="text-lg font-bold text-green-600">{stats.paid}</p><p className="text-xs text-gray-500">Received</p></div>
+      {/* KPI Stats Block */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Invoices</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats.totalAmount)}</p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Purchase Value</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pending Orders</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <p className="text-2xl font-bold text-green-600">{stats.paid}</p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Received Orders</p>
+        </div>
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-200 p-3 mb-4">
-        <div className="relative max-w-sm"><Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by PO or supplier..." className="pl-9" /><Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" /></div>
+      {/* Search and Filters */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by PO #, Invoice #, or supplier..."
+            className="pl-10 h-10 border-gray-200 focus:ring-orange-500 rounded-lg"
+          />
+        </div>
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead><tr className="border-b border-gray-100 bg-gray-50">
-            <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">PO #</th>
-            <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Supplier</th>
-            <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Date</th>
-            <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Items</th>
-            <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Total</th>
-            <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Status</th>
-            <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Actions</th>
-          </tr></thead>
-          <tbody>{filtered.map(p => (
-            <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50">
-              <td className="px-4 py-3 font-mono text-blue-600">{p.poNumber}</td>
-              <td className="px-4 py-3 text-gray-800">{p.supplierName}</td>
-              <td className="px-4 py-3 text-gray-600">{formatDate(p.createdAt)}</td>
-              <td className="px-4 py-3 text-center">{p.items.length} items</td>
-              <td className="px-4 py-3 text-right font-medium">{formatCurrency(p.grandTotal)}</td>
-              <td className="px-4 py-3 text-center"><StatusBadge status={p.status} /></td>
-              <td className="px-4 py-3 text-center">
-                <div className="flex items-center justify-center gap-1">
-                  <button onClick={() => setViewPurchase(p)} className="p-1.5 rounded hover:bg-gray-100 text-gray-500"><Eye className="w-4 h-4" /></button>
-                  {p.status === 'pending' && (
-                    <button
-                      onClick={async () => {
-                        try {
-                          await updatePurchase(p.id, { status: 'received' });
-                          toast.success('Marked as received');
-                        } catch (err) {
-                          console.error('Failed to mark received', err);
-                          toast.error('Update failed', 'Unable to update purchase status');
-                        }
-                      }}
-                      className="p-1.5 rounded hover:bg-green-50 text-green-600"
-                      title="Mark as received"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                    </button>
-                  )}
-                  <button onClick={() => { deletePurchase(p.id); toast.success('Deleted'); }} className="p-1.5 rounded hover:bg-red-50 text-gray-500 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
-                </div>
-              </td>
-            </tr>
-          ))}</tbody>
-        </table>
+      {/* Purchases List */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50/75 text-gray-500 uppercase text-xs font-bold">
+                <th className="text-left px-6 py-4">PO # / Ref</th>
+                <th className="text-left px-6 py-4">Supplier</th>
+                <th className="text-left px-6 py-4">Date</th>
+                <th className="text-center px-6 py-4">Items Count</th>
+                <th className="text-right px-6 py-4">Grand Total</th>
+                <th className="text-center px-6 py-4">Status</th>
+                <th className="text-center px-6 py-4">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {filteredPurchases.map(p => (
+                <tr key={p.id} className="hover:bg-gray-50/50 transition">
+                  <td className="px-6 py-4 font-mono text-sm font-semibold text-blue-600">
+                    <div>{p.poNumber}</div>
+                    {p.reference && <div className="text-xs text-gray-400 font-normal mt-0.5">Inv: {p.reference}</div>}
+                  </td>
+                  <td className="px-6 py-4 font-semibold text-gray-800">{p.supplierName}</td>
+                  <td className="px-6 py-4 text-gray-600">{formatDate(p.createdAt)}</td>
+                  <td className="px-6 py-4 text-center text-gray-600 font-medium">{p.items?.length || 0} units</td>
+                  <td className="px-6 py-4 text-right font-bold text-gray-900">{formatCurrency(p.grandTotal)}</td>
+                  <td className="px-6 py-4 text-center">
+                    <StatusBadge status={p.status} />
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <button
+                        onClick={() => setViewPurchase(p)}
+                        className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-900 transition"
+                        title="View Details"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          deletePurchase(p.id);
+                          toast.success('Deleted purchase record');
+                        }}
+                        className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"
+                        title="Delete Invoice"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Create Purchase Modal */}
+      {/* New Purchase Invoice Dialog */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>New Purchase Order</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div><Label>Supplier *</Label>
-              <select value={supplierId} onChange={e => setSupplierId(e.target.value)} className="w-full h-9 px-3 border rounded-md text-sm">
-                <option value="">Select Supplier</option>
-                {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <Label>Scan Barcode / IMEI</Label>
-              <Input
-                ref={scanRef}
-                placeholder="Scan barcode or enter code and press Enter"
-                value={scanQuery}
-                onChange={(e) => setScanQuery(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); /* handled by effect */ } }}
-                className="w-full h-9 mb-2"
-              />
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-2"><Label>Items</Label><Button size="sm" variant="outline" onClick={addItemRow}><Plus className="w-3 h-3 mr-1" />Add Item</Button></div>
-              <div className="space-y-2">
-                {items.map((item, idx) => (
-                  <div key={idx} className="flex gap-2 items-end">
-                    <div className="flex-1"><select value={item.productId} onChange={e => updateItem(idx, 'productId', e.target.value)} className="w-full h-9 px-3 border rounded-md text-sm"><option value="">Select Product</option>{products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
-                    <Input type="number" value={item.quantity} onChange={e => updateItem(idx, 'quantity', parseInt(e.target.value) || 1)} className="w-20 h-9" />
-                    <Input type="number" value={item.unitCost} onChange={e => updateItem(idx, 'unitCost', parseFloat(e.target.value) || 0)} className="w-28 h-9" placeholder="Cost" />
-                    <span className="text-sm font-medium w-20 text-right">{formatCurrency(item.quantity * item.unitCost)}</span>
-                    {items.length > 1 && <button onClick={() => removeItemRow(idx)} className="p-1.5 text-red-500 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4" /></button>}
-                  </div>
-                ))}
+        <DialogContent className="sm:max-w-[850px] max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-gray-900">Create Purchase Invoice</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-6 mt-4">
+            {/* Purchase Details Fields */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-gray-600 uppercase tracking-wider">Supplier *</Label>
+                <select
+                  value={supplierId}
+                  onChange={e => setSupplierId(e.target.value)}
+                  className="w-full h-10 px-3 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 font-medium"
+                >
+                  <option value="">Select Supplier</option>
+                  {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-gray-600 uppercase tracking-wider">Invoice / Bill Number *</Label>
+                <div className="relative">
+                  <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    value={invoiceNumber}
+                    onChange={e => setInvoiceNumber(e.target.value)}
+                    placeholder="Enter supplier bill number"
+                    className="pl-10 h-10 border-gray-200 focus:ring-orange-500 rounded-lg"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-gray-600 uppercase tracking-wider">Invoice Date *</Label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    type="date"
+                    value={invoiceDate}
+                    onChange={e => setInvoiceDate(e.target.value)}
+                    className="pl-10 h-10 border-gray-200 focus:ring-orange-500 rounded-lg"
+                  />
+                </div>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <Label>Tax Rate (%)</Label>
+
+            {/* Continuous IMEI Scanner */}
+            <div className="bg-orange-50/50 border border-orange-200/60 rounded-xl p-4 space-y-2">
+              <Label className="text-xs font-bold text-orange-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Smartphone className="w-4 h-4 text-orange-600" /> Continuous IMEI Scanning
+              </Label>
+              <form onSubmit={handleScanSubmit}>
                 <Input
-                  type="number"
-                  min={0}
-                  value={taxRate}
-                  onChange={(e) => setTaxRate(Math.max(0, parseFloat(e.target.value) || 0))}
-                  className="w-full h-9"
+                  ref={scanRef}
+                  value={scanQuery}
+                  onChange={e => setScanQuery(e.target.value)}
+                  placeholder="Scan or type IMEI and press Enter..."
+                  autoComplete="off"
+                  className="h-10 bg-white border-orange-200 focus:ring-orange-500 focus:border-orange-500 rounded-lg text-base"
                 />
+              </form>
+              {scanError ? (
+                <p className="text-xs font-bold text-red-500 mt-1.5 bg-red-50 border border-red-200/50 p-2 rounded-lg">
+                  {scanError}
+                </p>
+              ) : (
+                <p className="text-xs text-orange-600">The input field automatically clears and remains focused for fast scanning.</p>
+              )}
+            </div>
+
+            {/* Grouped Scanned Items List */}
+            <div className="space-y-3">
+              <Label className="text-xs font-bold text-gray-600 uppercase tracking-wider">Grouped Invoice Items</Label>
+
+              {scannedItems.length === 0 ? (
+                <div className="border border-dashed border-gray-200 rounded-xl p-8 text-center bg-gray-50/20">
+                  <Smartphone className="mx-auto h-8 w-8 text-gray-300 mb-2" />
+                  <p className="text-sm text-gray-500">No IMEIs scanned yet. Scan an IMEI above to build the invoice.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {groupedScannedItems.map(group => (
+                    <div key={group.productId} className="border border-gray-200 rounded-xl p-4 bg-white space-y-3 shadow-xs">
+                      {/* Product Group Header */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700 border">
+                              {group.brandName}
+                            </span>
+                            {group.storage && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100">
+                                {group.storage}
+                              </span>
+                            )}
+                          </div>
+                          <h4 className="text-base font-bold text-gray-900 mt-1">{group.model}</h4>
+                          <p className="text-xs text-gray-500 mt-0.5">Total Units: <span className="font-bold text-gray-800">{group.totalUnits}</span></p>
+                        </div>
+
+                        {/* Edit Group Purchase Price */}
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs font-bold text-gray-500 uppercase">Unit Cost</Label>
+                          <Input
+                            type="number"
+                            value={group.unitCost}
+                            onChange={e => updateProductGroupCost(group.productId, parseFloat(e.target.value) || 0)}
+                            className="w-28 h-9 text-sm font-semibold text-right"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Color Grouping */}
+                      <div className="space-y-3 pl-2">
+                        {Object.entries(group.colors).map(([colorName, imeiList]) => (
+                          <div key={colorName} className="space-y-1.5">
+                            <h5 className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+                              <Palette className="w-3.5 h-3.5 text-gray-400" />
+                              {colorName} <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 rounded-full">{imeiList.length}</span>
+                            </h5>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pl-4">
+                              {imeiList.map(itemObj => (
+                                <div key={itemObj.imei} className="flex items-center justify-between bg-gray-50 border rounded-lg px-2.5 py-1.5 gap-2">
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="font-mono text-xs text-gray-800 select-all font-semibold truncate">{itemObj.imei}</span>
+                                    {itemObj.ram && itemObj.storage && (
+                                      <span className="text-[10px] text-blue-600 font-semibold">{itemObj.ram} / {itemObj.storage}</span>
+                                    )}
+                                  </div>
+                                  <button
+                                    onClick={() => removeImei(itemObj.imei)}
+                                    className="text-red-500 hover:text-red-700 text-xs font-bold flex-shrink-0"
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Group Calculation Footer */}
+                      <div className="flex justify-end text-xs font-bold text-gray-500 pt-1">
+                        <span>Group Total: {formatCurrency(group.totalUnits * group.unitCost)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Calculations and Action buttons */}
+            <div className="border-t pt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div className="text-left">
+                <span className="text-sm font-medium text-gray-500">Invoice Grand Total</span>
+                <p className="text-3xl font-extrabold text-orange-600">{formatCurrency(grandTotal)}</p>
               </div>
-              <div className="flex flex-col justify-end">
-                <div className="text-sm text-gray-500">Tax is calculated from the subtotal.</div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setModalOpen(false)}>Cancel</Button>
+                <Button className="bg-orange-500 hover:bg-orange-600 shadow-md font-semibold" onClick={handleCreatePurchase}>
+                  Record Purchase Bill
+                </Button>
               </div>
             </div>
-            <div className="border-t pt-3 space-y-1 text-sm">
-              <div className="flex justify-between"><span className="text-gray-600">Subtotal</span><span className="font-medium">{formatCurrency(subtotal)}</span></div>
-              <div className="flex justify-between"><span className="text-gray-600">Tax ({taxRate}%)</span><span className="font-medium">{formatCurrency(tax)}</span></div>
-              <div className="flex justify-between text-base font-semibold border-t pt-2"><span>Grand Total</span><span className="text-orange-500">{formatCurrency(grandTotal)}</span></div>
-            </div>
-            <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setModalOpen(false)}>Cancel</Button><Button className="bg-orange-500 hover:bg-orange-600" onClick={handleCreatePurchase}>Create Purchase</Button></div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* View Purchase */}
+      {/* Invoice Receipt Viewer */}
       <Dialog open={!!viewPurchase} onOpenChange={() => setViewPurchase(null)}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader><DialogTitle>Purchase Order {viewPurchase?.poNumber}</DialogTitle></DialogHeader>
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center justify-between w-full">
+              <DialogTitle className="text-lg font-bold">Purchase Bill Detail</DialogTitle>
+              <button
+                onClick={() => {
+                  const invoiceElement = document.getElementById('purchase-invoice-print');
+                  if (invoiceElement) {
+                    const printWindow = window.open('', '', 'height=600,width=800');
+                    if (printWindow) {
+                      printWindow.document.write('<html><head><title>Purchase Invoice</title>');
+                      printWindow.document.write('<link rel="stylesheet" href="' + window.location.href + '">');
+                      printWindow.document.write('</head><body>');
+                      printWindow.document.write(invoiceElement.innerHTML);
+                      printWindow.document.write('</body></html>');
+                      printWindow.document.close();
+                      printWindow.print();
+                    }
+                  }
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-gray-900"
+                title="Print Invoice"
+              >
+                <Printer className="w-5 h-5" />
+              </button>
+            </div>
+          </DialogHeader>
           {viewPurchase && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-2 text-sm"><span className="text-gray-500">Supplier:</span><span className="font-medium">{viewPurchase.supplierName}</span><span className="text-gray-500">Date:</span><span>{formatDate(viewPurchase.createdAt)}</span><span className="text-gray-500">Status:</span><span><StatusBadge status={viewPurchase.status} /></span></div>
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full text-sm"><thead className="bg-gray-50"><tr><th className="text-left px-3 py-2 text-xs">Product</th><th className="text-center px-3 py-2 text-xs">Qty</th><th className="text-right px-3 py-2 text-xs">Cost</th><th className="text-right px-3 py-2 text-xs">Total</th></tr></thead>
-                  <tbody>{viewPurchase.items.map((it, i) => (<tr key={i} className="border-t"><td className="px-3 py-2">{it.productName}</td><td className="px-3 py-2 text-center">{it.quantity}</td><td className="px-3 py-2 text-right">{formatCurrency(it.unitCost)}</td><td className="px-3 py-2 text-right font-medium">{formatCurrency(it.total)}</td></tr>))}</tbody>
-                </table>
-              </div>
-              <div className="space-y-1 text-sm border-t pt-2">
-                <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(viewPurchase.subtotal)}</span></div>
-                <div className="flex justify-between"><span>Tax</span><span>{formatCurrency(viewPurchase.tax)}</span></div>
-                <div className="flex justify-between font-semibold text-base"><span>Grand Total</span><span className="text-orange-500">{formatCurrency(viewPurchase.grandTotal)}</span></div>
+            <div className="mt-4">
+              <div id="purchase-invoice-print">
+                <PurchaseInvoiceReceipt
+                  purchase={viewPurchase}
+                  shopSettings={useSettingsStore.getState().shopSettings}
+                  receiptSettings={useSettingsStore.getState().receiptSettings}
+                  layout="a4"
+                  screen={true}
+                />
               </div>
             </div>
           )}

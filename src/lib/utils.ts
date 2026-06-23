@@ -54,8 +54,13 @@ export function formatDateTime(date: string | Date): string {
   }
 }
 
-export function generateInvoiceNumber(): string {
-  const prefix = 'INV';
+export function generateInvoiceNumber(prefix = 'INV', nextNumber?: number): string {
+  if (typeof nextNumber === 'number') {
+    const hasPrefix = Boolean(prefix && prefix.trim());
+    const numberText = hasPrefix ? String(nextNumber).padStart(6, '0') : String(nextNumber);
+    return hasPrefix ? `${prefix}-${numberText}` : numberText;
+  }
+
   const year = new Date().getFullYear();
   const timestamp = Date.now().toString().slice(-6);
   const random = Math.floor(1000 + Math.random() * 9000);

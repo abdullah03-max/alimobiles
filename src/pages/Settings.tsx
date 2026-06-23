@@ -17,14 +17,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { cn, downloadCSV } from '@/lib/utils';
 import {
-  Store, Receipt, Percent, Users, Database, Info,
+  Store, Receipt, Users, Database, Info,
   ShoppingBag, Printer, Landmark, CreditCard, Wallet, Smartphone, AlertTriangle, Banknote,
 } from 'lucide-react';
 
 const settingMenus = [
   { id: 'shop', label: 'Shop Settings', icon: Store },
   { id: 'receipt', label: 'Receipt / Invoice', icon: Receipt },
-  { id: 'tax', label: 'Tax Settings', icon: Percent },
   { id: 'payment', label: 'Payment Methods', icon: CreditCard },
   { id: 'users', label: 'Users & Roles', icon: Users },
   { id: 'backup', label: 'Backup & Export', icon: Database },
@@ -62,7 +61,7 @@ function loadPaymentMethods() {
 }
 
 export default function Settings() {
-  const { shopSettings, receiptSettings, taxSettings, paymentMethods, loadSettings, updateShopSettings, saveShopSettings, updateReceiptSettings, saveReceiptSettings, updateTaxSettings, saveTaxSettings, updatePaymentMethods, savePaymentMethods } = useSettingsStore();
+  const { shopSettings, receiptSettings, paymentMethods, loadSettings, updateShopSettings, saveShopSettings, updateReceiptSettings, saveReceiptSettings, updatePaymentMethods, savePaymentMethods } = useSettingsStore();
   const { user } = useAuthStore();
   const { products, categories, brands, loadData: loadProducts } = useProductStore();
   const { sales, loadData: loadSales } = useSaleStore();
@@ -99,11 +98,7 @@ export default function Settings() {
     if (result.success) toast.success('Receipt settings saved');
     else toast.error('Receipt settings not saved', result.error || 'Unable to save receipt settings');
   };
-  const handleSaveTax = async () => {
-    const result = await saveTaxSettings();
-    if (result.success) toast.success('Tax settings saved');
-    else toast.error('Tax settings not saved', result.error || 'Unable to save tax settings');
-  };
+
 
   const exportCsvData = (data: Record<string, unknown>[], filename: string, label: string) => {
     if (data.length === 0) {
@@ -292,29 +287,14 @@ export default function Settings() {
               <div><Label>Receipt Header</Label><Textarea value={receiptSettings.header || ''} onChange={e => updateReceiptSettings({ header: e.target.value })} rows={3} placeholder="Address and extra shop details (shop name is added automatically)" /></div>
               <div><Label>Receipt Footer</Label><Textarea value={receiptSettings.footer || ''} onChange={e => updateReceiptSettings({ footer: e.target.value })} rows={2} placeholder="Thank you message..." /></div>
               <div><Label>Invoice Prefix</Label><Input value={receiptSettings.invoicePrefix} onChange={e => updateReceiptSettings({ invoicePrefix: e.target.value })} /></div>
-              <div className="flex items-center justify-between"><Label>Show Tax Breakdown</Label><Switch checked={receiptSettings.showTaxBreakdown} onCheckedChange={v => updateReceiptSettings({ showTaxBreakdown: v })} /></div>
+              <div><Label>Starting Invoice Number</Label><Input type="number" min={0} value={receiptSettings.startingNumber} onChange={e => updateReceiptSettings({ startingNumber: Number(e.target.value) || 0 })} /></div>
               <div className="flex items-center justify-between"><Label>Show Logo on Receipt</Label><Switch checked={receiptSettings.showLogo} onCheckedChange={v => updateReceiptSettings({ showLogo: v })} /></div>
               <Button className="bg-orange-500 hover:bg-orange-600" onClick={handleSaveReceipt}>Save Receipt Settings</Button>
             </div>
           </div>
         )}
 
-        {activeMenu === 'tax' && (
-          <div className="bg-white rounded-lg border border-gray-200">
-            <div className="p-4 border-b border-gray-100 flex items-center gap-2"><div className="w-1 h-4 bg-orange-500 rounded-full" /><h2 className="font-semibold">Tax Configuration</h2></div>
-            <div className="p-4 space-y-4 max-w-lg">
-              <div className="flex items-center justify-between"><Label>Enable Tax</Label><Switch checked={taxSettings.enabled} onCheckedChange={v => updateTaxSettings({ enabled: v })} /></div>
-              {taxSettings.enabled && (
-                <>
-                  <div><Label>Tax Name</Label><Input value={taxSettings.name} onChange={e => updateTaxSettings({ name: e.target.value })} /></div>
-                  <div><Label>Tax Rate (%)</Label><Input type="number" value={taxSettings.rate} onChange={e => updateTaxSettings({ rate: parseFloat(e.target.value) || 0 })} /></div>
-                  <div className="flex items-center justify-between"><Label>Tax Included in Price</Label><Switch checked={taxSettings.includedInPrice} onCheckedChange={v => updateTaxSettings({ includedInPrice: v })} /></div>
-                </>
-              )}
-              <Button className="bg-orange-500 hover:bg-orange-600" onClick={handleSaveTax}>Save Tax Settings</Button>
-            </div>
-          </div>
-        )}
+
 
         {activeMenu === 'payment' && (
           <div className="bg-white rounded-lg border border-gray-200">

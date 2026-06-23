@@ -35,7 +35,7 @@ const defaultReceiptSettings: ReceiptSettings = {
   showLogo: true,
   receiptWidth: '80mm',
   invoicePrefix: 'INV',
-  startingNumber: 1,
+  startingNumber: 0,
   showTaxBreakdown: true,
 };
 

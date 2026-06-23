@@ -19,13 +19,30 @@ export default function Sales() {
   const navigate = useNavigate();
   const toast = useToast();
   const { sales, loadData, updateSale, deleteSale } = useSaleStore();
-  const { shopSettings, receiptSettings, taxSettings } = useSettingsStore();
+  const { shopSettings, receiptSettings, loadSettings } = useSettingsStore();
   const { printReceipt } = usePrint();
   const [search, setSearch] = useState('');
   const [viewSale, setViewSale] = useState<Sale | null>(null);
   const [deleteSaleId, setDeleteSaleId] = useState<string | null>(null);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { 
+    loadData(); 
+    loadSettings();
+  }, []);
+
+  // If user scans an IMEI in the search box, open its sale invoice immediately
+  useEffect(() => {
+    const q = search.trim();
+    if (!q) return;
+
+    // look for a sale that contains this IMEI in its items
+    const found = sales.find(s => s.items && s.items.some(it => it.imei && it.imei === q));
+    if (found) {
+      setViewSale(found);
+      setSearch('');
+      toast.success('Invoice opened', found.invoiceNumber);
+    }
+  }, [search, sales, toast]);
 
   const filtered = useMemo(() => {
     let result = [...sales];
@@ -88,33 +105,23 @@ export default function Sales() {
       </div>
 
       <Dialog open={!!viewSale} onOpenChange={() => setViewSale(null)}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[850px] max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Invoice {viewSale?.invoiceNumber}</DialogTitle></DialogHeader>
           {viewSale && (
             <div className="space-y-4">
               <InvoiceReceipt
+                id="invoice-receipt"
                 sale={viewSale}
                 shopSettings={shopSettings}
                 receiptSettings={receiptSettings}
-                taxName={taxSettings.name}
-                taxRate={taxSettings.rate}
                 screen
+                layout="a4"
               />
-              <div className="hidden">
-                <InvoiceReceipt
-                  id="invoice-receipt"
-                  sale={viewSale}
-                  shopSettings={shopSettings}
-                  receiptSettings={receiptSettings}
-                  taxName={taxSettings.name}
-                  taxRate={taxSettings.rate}
-                />
-              </div>
               <div className="flex justify-end">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => printReceipt('invoice-receipt', receiptSettings.receiptWidth)}
+                  onClick={() => printReceipt('invoice-receipt', 'A4')}
                 >
                   <Printer className="w-4 h-4 mr-1" />Print
                 </Button>

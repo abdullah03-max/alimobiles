@@ -85,7 +85,6 @@ export default function Reports() {
       Items: s.items.length,
       Subtotal: s.subtotal,
       Discount: s.discount,
-      Tax: s.tax,
       Total: s.grandTotal,
       Payment: s.paymentMethod,
       Status: s.status,
@@ -117,11 +116,10 @@ export default function Reports() {
 
       {reportType === 'sales' && (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
             <div className="bg-white rounded-lg border border-gray-200 p-3"><p className="text-lg font-bold">{formatCurrency(totalRevenue)}</p><p className="text-xs text-gray-500">Total Sales</p></div>
             <div className="bg-white rounded-lg border border-gray-200 p-3"><p className="text-lg font-bold">{filteredSales.length}</p><p className="text-xs text-gray-500">Orders</p></div>
             <div className="bg-white rounded-lg border border-gray-200 p-3"><p className="text-lg font-bold">{filteredSales.length > 0 ? formatCurrency(totalRevenue / filteredSales.length) : 'PKR 0'}</p><p className="text-xs text-gray-500">Average Order</p></div>
-            <div className="bg-white rounded-lg border border-gray-200 p-3"><p className="text-lg font-bold">{formatCurrency(filteredSales.reduce((s, sa) => s + sa.tax, 0))}</p><p className="text-xs text-gray-500">Tax Collected</p></div>
           </div>
           <div className="bg-white rounded-lg border border-gray-200 p-4">
             <h3 className="font-semibold mb-4">Sales Over Time</h3>

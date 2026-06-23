@@ -7,6 +7,9 @@ type Product = {
   imei?: string;
   brandId: string;
   categoryId: string;
+  color?: string;
+  storage?: string;
+  ram?: string;
   description?: string;
   costPrice: number;
   salePrice: number;
@@ -20,6 +23,19 @@ type Product = {
   showInPos: boolean;
   createdAt: string;
   updatedAt: string;
+};
+
+type ProductIMEI = {
+  id: string;
+  productId: string;
+  imei: string;
+  status: 'available' | 'sold';
+  color?: string;
+  createdAt: string;
+  updatedAt: string;
+  soldAt?: string;
+  ram?: string;
+  storage?: string;
 };
 
 // Category
@@ -123,6 +139,12 @@ type PurchaseItem = {
   quantity: number;
   unitCost: number;
   total: number;
+  imei?: string;
+  color?: string;
+  storage?: string;
+  ram?: string;
+  brandName?: string;
+  model?: string;
 };
 
 // Purchase
@@ -171,6 +193,7 @@ type ReturnItem = {
   unitPrice: number;
   total: number;
   reason: string;
+  imei?: string;
 };
 
 // Inventory Adjustment
@@ -269,10 +292,14 @@ type CartItem = {
   productId: string;
   productName: string;
   productImage?: string;
+  brandName?: string;
+  model?: string;
+  storage?: string;
   quantity: number;
   unitPrice: number;
   total: number;
   imei?: string;
+  color?: string;
   maxStock: number;
 };
 
@@ -295,6 +322,7 @@ type NavItem = {
 
 export type {
   Product,
+  ProductIMEI,
   Category,
   Brand,
   Unit,

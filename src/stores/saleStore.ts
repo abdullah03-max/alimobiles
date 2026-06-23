@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import type { Sale, ReturnRecord } from '@/types';
 import { supabase } from '@/lib/supabaseClient';
 import { generateInvoiceNumber } from '@/lib/utils';
+import { useImeiStore } from '@/stores/imeiStore';
+import { useSettingsStore } from '@/stores/settingsStore';
 
 interface SaleState {
   sales: Sale[];
@@ -98,8 +100,28 @@ export const useSaleStore = create<SaleState>((set, get) => ({
       let insertedSale: any = null;
       let sErr: any = null;
 
+      const { invoicePrefix, startingNumber } = useSettingsStore.getState().receiptSettings;
+      
+      const cleanPrefix = invoicePrefix ? invoicePrefix.replace(/-+$/, '') : '';
+      let maxSuffix = startingNumber - 1;
+      const prefixWithDash = cleanPrefix ? `${cleanPrefix}-` : '';
+      
+      get().sales.forEach(s => {
+        if (s.invoiceNumber && s.invoiceNumber.startsWith(prefixWithDash)) {
+          const suffixStr = s.invoiceNumber.substring(prefixWithDash.length);
+          if (/^\d+$/.test(suffixStr)) {
+            const num = parseInt(suffixStr, 10);
+            if (num > maxSuffix) {
+              maxSuffix = num;
+            }
+          }
+        }
+      });
+      
+      const nextNumber = maxSuffix + 1;
+
       for (let attempt = 0; attempt < 2; attempt++) {
-        const invoiceNumber = generateInvoiceNumber();
+        const invoiceNumber = generateInvoiceNumber(cleanPrefix, nextNumber + attempt);
         const saleData = {
           ...sale,
           invoiceNumber,
@@ -143,13 +165,16 @@ export const useSaleStore = create<SaleState>((set, get) => ({
 
       if (iErr) throw iErr;
 
-      // Update product stocks locally/DB if needed (handled by backend triggers or manually here if desired)
-      // Usually, stock reduction is handled on frontend or backend trigger. Let's make sure stock reduces in the DB:
+      // Update available IMEI and product stock values.
       for (const item of sale.items) {
-        const { data: prod } = await supabase.from('products').select('stock_quantity').eq('id', item.productId).single();
-        if (prod) {
-          const newQty = Math.max(0, prod.stock_quantity - item.quantity);
-          await supabase.from('products').update({ stock_quantity: newQty }).eq('id', item.productId);
+        if (item.imei) {
+          await useImeiStore.getState().markImeiSold(item.imei);
+        } else {
+          const { data: prod } = await supabase.from('products').select('stock_quantity').eq('id', item.productId).single();
+          if (prod) {
+            const newQty = Math.max(0, prod.stock_quantity - item.quantity);
+            await supabase.from('products').update({ stock_quantity: newQty }).eq('id', item.productId);
+          }
         }
       }
 
@@ -197,6 +222,11 @@ export const useSaleStore = create<SaleState>((set, get) => ({
       if (!sale) return false;
 
       for (const item of sale.items) {
+        if (item.imei) {
+          await useImeiStore.getState().markImeiAvailable(item.imei);
+          continue;
+        }
+
         const { data: product, error: prodError } = await supabase
           .from('products')
           .select('stock_quantity')
@@ -285,10 +315,14 @@ export const useSaleStore = create<SaleState>((set, get) => ({
 
       // Update product stocks (add back returned items)
       for (const item of returnData.items) {
-        const { data: prod } = await supabase.from('products').select('stock_quantity').eq('id', item.productId).single();
-        if (prod) {
-          const newQty = prod.stock_quantity + item.returnQuantity;
-          await supabase.from('products').update({ stock_quantity: newQty }).eq('id', item.productId);
+        if (item.imei) {
+          await useImeiStore.getState().markImeiAvailable(item.imei);
+        } else {
+          const { data: prod } = await supabase.from('products').select('stock_quantity').eq('id', item.productId).single();
+          if (prod) {
+            const newQty = prod.stock_quantity + item.returnQuantity;
+            await supabase.from('products').update({ stock_quantity: newQty }).eq('id', item.productId);
+          }
         }
       }
 

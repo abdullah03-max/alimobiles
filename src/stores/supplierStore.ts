@@ -56,7 +56,24 @@ export const useSupplierStore = create<SupplierState>((set, get) => ({
       const suppliers = (sRes.data || []).map(toCamelCase) as Supplier[];
       const purchases = (pRes.data || []).map(p => {
         const camelP = toCamelCase(p);
-        camelP.items = (p.purchase_items || []).map(toCamelCase);
+        camelP.items = (p.purchase_items || []).map((rawItem: any) => {
+          const item = toCamelCase(rawItem);
+          if (item.productName && item.productName.startsWith('{')) {
+            try {
+              const parsed = JSON.parse(item.productName);
+              item.productName = parsed.name || item.productName;
+              item.imei = parsed.imei || null;
+              item.color = parsed.color || null;
+              item.storage = parsed.storage || null;
+              item.brandName = parsed.brandName || null;
+              item.model = parsed.model || null;
+              item.ram = parsed.ram || null;
+            } catch (e) {
+              // ignore
+            }
+          }
+          return item;
+        });
         return camelP;
       }) as Purchase[];
 
@@ -132,15 +149,26 @@ export const useSupplierStore = create<SupplierState>((set, get) => ({
 
       const purchaseId = insertedPurchase.id;
 
-      // Insert purchase items
-      const itemsToInsert = purchase.items.map(item => ({
-        purchase_id: purchaseId,
-        product_id: item.productId,
-        product_name: item.productName,
-        quantity: item.quantity,
-        unit_cost: item.unitCost,
-        total: item.total,
-      }));
+      // Insert purchase items by serializing extra fields as JSON inside product_name
+      const itemsToInsert = purchase.items.map(item => {
+        const namePayload = {
+          name: item.productName,
+          imei: item.imei || null,
+          color: item.color || null,
+          storage: item.storage || null,
+          brandName: item.brandName || null,
+          model: item.model || null,
+          ram: item.ram || null
+        };
+        return {
+          purchase_id: purchaseId,
+          product_id: item.productId,
+          product_name: JSON.stringify(namePayload),
+          quantity: item.quantity,
+          unit_cost: item.unitCost,
+          total: item.total
+        };
+      });
 
       const { data: insertedItems, error: iErr } = await supabase
         .from('purchase_items')
@@ -150,7 +178,24 @@ export const useSupplierStore = create<SupplierState>((set, get) => ({
       if (iErr) throw iErr;
 
       const finalPurchase = toCamelCase(insertedPurchase) as Purchase;
-      finalPurchase.items = (insertedItems || []).map(toCamelCase);
+      finalPurchase.items = (insertedItems || []).map((rawItem: any) => {
+        const item = toCamelCase(rawItem);
+        if (item.productName && item.productName.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(item.productName);
+            item.productName = parsed.name || item.productName;
+            item.imei = parsed.imei || null;
+            item.color = parsed.color || null;
+            item.storage = parsed.storage || null;
+            item.brandName = parsed.brandName || null;
+            item.model = parsed.model || null;
+            item.ram = parsed.ram || null;
+          } catch (e) {
+            // ignore
+          }
+        }
+        return item;
+      });
 
       const purchases = [finalPurchase, ...get().purchases];
       set({ purchases });

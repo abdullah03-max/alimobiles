@@ -82,6 +82,11 @@ export const useProductStore = create<ProductState>((set, get) => ({
       if (snakeData.unit_id === '') {
         delete snakeData.unit_id;
       }
+      
+      // Strip fields that do not exist as columns in the Supabase database table
+      delete snakeData.color;
+      delete snakeData.storage;
+      delete snakeData.ram;
 
       const { data, error } = await supabase
         .from('products')
@@ -106,6 +111,12 @@ export const useProductStore = create<ProductState>((set, get) => ({
   updateProduct: async (id, data) => {
     try {
       const snakeData = toSnakeCase(data);
+      
+      // Strip fields that do not exist as columns in the Supabase database table
+      delete snakeData.color;
+      delete snakeData.storage;
+      delete snakeData.ram;
+
       const { error } = await supabase
         .from('products')
         .update(snakeData)

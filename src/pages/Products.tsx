@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProductStore } from '@/stores/productStore';
+import { useImeiStore } from '@/stores/imeiStore';
 import { useToast } from '@/hooks/useToast';
 import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
@@ -8,23 +9,29 @@ import StatusBadge from '@/components/shared/StatusBadge';
 import DeleteConfirmModal from '@/components/shared/DeleteConfirmModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { formatCurrency, getStockStatus, downloadCSV } from '@/lib/utils';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { formatCurrency, getStockStatus, downloadCSV, calculateProfit } from '@/lib/utils';
 import {
-  Plus, Search, Pencil, Trash2, Download, Package, CheckCircle2, AlertTriangle, XCircle,
+  Plus, Search, Pencil, Trash2, Download, Package, CheckCircle2, AlertTriangle, XCircle, Smartphone, Eye,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function Products() {
   const navigate = useNavigate();
   const { products, categories, brands, loadData, deleteProduct } = useProductStore();
+  const { loadData: loadImeis, getImeisByProduct } = useImeiStore();
   const toast = useToast();
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [stockFilter, setStockFilter] = useState('');
   const [conditionFilter, setConditionFilter] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [detailProduct, setDetailProduct] = useState<any | null>(null);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    loadData();
+    loadImeis();
+  }, []);
 
   const filteredProducts = useMemo(() => {
     let result = [...products];
@@ -210,8 +217,14 @@ export default function Products() {
                     <td className="px-4 py-3 text-center"><StatusBadge status={product.status} /></td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => navigate(`/products/edit/${product.id}`)} className="p-1.5 rounded hover:bg-gray-100 text-gray-500"><Pencil className="w-4 h-4" /></button>
-                        <button onClick={() => setDeleteId(product.id)} className="p-1.5 rounded hover:bg-red-50 text-gray-500 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                        <button onClick={() => setDetailProduct(product)} className="p-1.5 rounded hover:bg-gray-100 text-gray-500" title="View Details">
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => navigate(`/products/edit/${product.id}`)} className="p-1.5 rounded hover:bg-gray-100 text-gray-500" title="Edit"><Pencil className="w-4 h-4" /></button>
+                        <button onClick={() => navigate(`/products/${product.id}/imeis`)} className="p-1.5 rounded hover:bg-gray-100 text-gray-500" title="Manage IMEIs">
+                          <Smartphone className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => setDeleteId(product.id)} className="p-1.5 rounded hover:bg-red-50 text-gray-500 hover:text-red-500" title="Delete"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </td>
                   </tr>
@@ -223,6 +236,149 @@ export default function Products() {
       )}
 
       <DeleteConfirmModal open={!!deleteId} onClose={() => setDeleteId(null)} onConfirm={handleDelete} itemName="Product" />
+
+      {/* Product Detail Dialog */}
+      <Dialog open={!!detailProduct} onOpenChange={(open) => { if (!open) setDetailProduct(null); }}>
+        <DialogContent className="sm:max-w-[550px] max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Product Details</DialogTitle>
+          </DialogHeader>
+          {detailProduct && (() => {
+            const category = categories.find(c => c.id === detailProduct.categoryId);
+            const brand = brands.find(b => b.id === detailProduct.brandId);
+            
+            // Parse predefined colors
+            let descriptionText = detailProduct.description || '';
+            let parsedColors: string[] = [];
+            if (descriptionText.startsWith('{')) {
+              try {
+                const parsed = JSON.parse(descriptionText);
+                parsedColors = parsed.colors || [];
+                descriptionText = parsed.text || '';
+              } catch (e) {
+                // fallback
+              }
+            }
+            
+            const productImeis = getImeisByProduct(detailProduct.id);
+            const availableImeis = productImeis.filter(i => i.status === 'available');
+            const soldImeis = productImeis.filter(i => i.status === 'sold');
+            const colorStockCounts = parsedColors.reduce<Record<string, number>>((acc, color) => {
+              const normalized = color.toLowerCase().trim();
+              acc[color] = availableImeis.filter(imei => imei.color?.trim().toLowerCase() === normalized).length;
+              return acc;
+            }, {});
+            const profit = calculateProfit(detailProduct.costPrice, detailProduct.salePrice);
+            
+            return (
+              <div className="space-y-4">
+                {/* General Info */}
+                <div className="flex items-center gap-3 border-b pb-3">
+                  <div className="w-12 h-12 bg-orange-50 rounded-lg flex items-center justify-center text-orange-500">
+                    <Package className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg text-gray-800">{detailProduct.name}</h3>
+                    <p className="text-xs text-gray-500">
+                      Category: <span className="font-semibold">{category?.name || '—'}</span> | Brand: <span className="font-semibold">{brand?.name || '—'}</span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Specs (only predefined colors) */}
+                <div className="space-y-3 text-sm">
+                  <div className="bg-gray-50 p-2.5 rounded-lg">
+                    <span className="text-gray-400 block text-xs">Predefined Colors</span>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {parsedColors.length > 0 ? parsedColors.map(c => (
+                        <div key={c} className="flex min-w-[140px] flex-col gap-1 rounded-2xl border border-orange-100 bg-orange-50 px-3 py-2">
+                          <span className="text-orange-700 text-xs font-semibold uppercase tracking-wide">{c}</span>
+                          <span className="text-xs text-gray-600">{colorStockCounts[c] ?? 0} remaining</span>
+                        </div>
+                      )) : (
+                        <span className="text-xs text-gray-400 italic">No colors defined</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pricing & Profit */}
+                <div className="border rounded-lg p-3 space-y-2">
+                  <h4 className="font-semibold text-gray-850 text-xs uppercase tracking-wider">Pricing details</h4>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div>
+                      <span className="text-gray-400">Cost Price</span>
+                      <p className="font-semibold text-gray-700">{formatCurrency(detailProduct.costPrice)}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Sale Price</span>
+                      <p className="font-semibold text-gray-700">{formatCurrency(detailProduct.salePrice)}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Wholesale Price</span>
+                      <p className="font-semibold text-gray-700">{detailProduct.wholesalePrice ? formatCurrency(detailProduct.wholesalePrice) : '—'}</p>
+                    </div>
+                  </div>
+                  <div className="bg-green-50 border border-green-100 rounded-md p-2 text-xs text-green-700 flex justify-between">
+                    <span>Estimated Profit Per Unit</span>
+                    <span className="font-bold">{formatCurrency(profit.amount)} ({profit.margin}% margin)</span>
+                  </div>
+                </div>
+
+                {/* Stock & Serial Numbers */}
+                <div className="border rounded-lg p-3 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-semibold text-gray-850 text-xs uppercase tracking-wider">Stock & IMEIs</h4>
+                    <span className="text-xs bg-gray-150 text-gray-700 px-2 py-0.5 rounded-full font-semibold">Total Stock: {detailProduct.stockQuantity}</span>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2 text-center text-xs">
+                    <div className="bg-green-50/50 border border-green-100 rounded p-2 text-green-700">
+                      <span className="font-bold text-base block">{availableImeis.length}</span>
+                      Available
+                    </div>
+                    <div className="bg-red-50/50 border border-red-100 rounded p-2 text-red-700">
+                      <span className="font-bold text-base block">{soldImeis.length}</span>
+                      Sold
+                    </div>
+                  </div>
+
+                  {productImeis.length > 0 && (
+                    <div className="mt-2">
+                      <span className="text-xs text-gray-400 block mb-1">IMEI Serial Registry</span>
+                      <div className="border rounded-md divide-y max-h-[140px] overflow-y-auto font-mono text-[11px]">
+                        {productImeis.map(record => (
+                          <div key={record.id} className="flex justify-between items-center p-2 hover:bg-gray-50">
+                            <span>{record.imei} {record.color ? `(${record.color})` : ''}</span>
+                            <span className={cn(
+                              "px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase",
+                              record.status === 'available' ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"
+                            )}>
+                              {record.status}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Metadata */}
+                <div className="grid grid-cols-2 gap-2 text-xs text-gray-400 pt-2 border-t">
+                  <div>Condition: <span className="font-medium text-gray-600 capitalize">{detailProduct.condition}</span></div>
+                  <div className="text-right">Status: <span className="font-medium text-gray-600 capitalize">{detailProduct.status}</span></div>
+                  {descriptionText && (
+                    <div className="col-span-2 mt-2 pt-2 border-t">
+                      <span className="font-semibold text-gray-500 block text-xs">Description</span>
+                      <p className="mt-0.5 text-gray-600 normal-case leading-relaxed">{descriptionText}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

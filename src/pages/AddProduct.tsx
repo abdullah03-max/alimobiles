@@ -9,45 +9,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { productSchema, type ProductFormData } from '@/lib/validators';
 import { formatCurrency, calculateProfit } from '@/lib/utils';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Smartphone, Plus, X, Layers, Palette } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-const BRAND_MODELS: Record<string, string[]> = {
-  'Apple': [
-    'iPhone 15 Pro Max', 'iPhone 15 Pro', 'iPhone 15', 'iPhone 14 Pro Max',
-    'iPhone 14 Pro', 'iPhone 14', 'iPhone 13 Pro Max', 'iPhone 13 Pro', 'iPhone 13',
-    'iPad Pro', 'iPad Air'
-  ],
-  'Samsung': [
-    'Galaxy S24 Ultra', 'Galaxy S24+', 'Galaxy S24', 'Galaxy S23 Ultra',
-    'Galaxy S23', 'Galaxy A54', 'Galaxy A34', 'Galaxy Z Fold 5', 'Galaxy Z Flip 5'
-  ],
-  'Xiaomi': [
-    'Xiaomi 14 Ultra', 'Xiaomi 14', 'Xiaomi 13T Pro', 'Redmi Note 13 Pro',
-    'Redmi Note 13', 'Poco F6', 'Poco X6 Pro'
-  ],
-  'Huawei': [
-    'P60 Pro', 'Mate 60 Pro', 'Nova 11'
-  ],
-  'OPPO': [
-    'Find X7 Ultra', 'Reno 11 Pro', 'Reno 11', 'OPPO A78'
-  ],
-  'Vivo': [
-    'X100 Pro', 'V30 Pro', 'V30', 'Vivo Y200'
-  ],
-  'Realme': [
-    'GT 5', '12 Pro+', 'Realme 12', 'Realme C67'
-  ],
-  'Infinix': [
-    'Zero 30', 'Note 30 Pro', 'Hot 40 Pro'
-  ]
-};
-
-const CUSTOM_BRAND_MODEL_CATEGORIES = ['Mobiles', 'Tablets'];
-
-function usesCustomBrandModel(categoryName?: string) {
-  return CUSTOM_BRAND_MODEL_CATEGORIES.includes(categoryName ?? '');
-}
 
 export default function AddProduct() {
   const navigate = useNavigate();
@@ -60,9 +23,11 @@ export default function AddProduct() {
     name: '',
     sku: '',
     barcode: '',
-    imei: '',
     brandId: '',
     categoryId: '',
+    color: '',
+    storage: '',
+    ram: '',
     description: '',
     costPrice: 0,
     salePrice: 0,
@@ -74,9 +39,19 @@ export default function AddProduct() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Custom brand and model states for Mobiles and Tablets categories
+  // Mobile specifications states
   const [customBrand, setCustomBrand] = useState('');
   const [customModel, setCustomModel] = useState('');
+  
+  // Predefined variants state
+  const [variantsList, setVariantsList] = useState<{ ram: string; storage: string }[]>([]);
+  const [selectedRam, setSelectedRam] = useState('4GB');
+  const [selectedStorage, setSelectedStorage] = useState('128GB');
+
+  // Colors multi-select states
+  const [colorsList, setColorsList] = useState<string[]>([]);
+  const [newColorInput, setNewColorInput] = useState('');
+
   const initializedProductId = useRef<string | null>(null);
 
   useEffect(() => {
@@ -93,14 +68,31 @@ export default function AddProduct() {
     const product = products.find(p => p.id === id);
     if (!product) return;
 
+    // Parse description for colors and variants
+    let descriptionText = product.description || '';
+    let parsedColors: string[] = [];
+    let parsedVariants: { ram: string; storage: string }[] = [];
+    if (descriptionText.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(descriptionText);
+        parsedColors = parsed.colors || [];
+        parsedVariants = parsed.variants || [];
+        descriptionText = parsed.text || '';
+      } catch (e) {
+        // fallback
+      }
+    }
+
     setForm({
       name: product.name,
       sku: product.sku,
       barcode: product.barcode,
-      imei: product.imei || '',
       brandId: product.brandId,
       categoryId: product.categoryId,
-      description: product.description || '',
+      color: '', 
+      storage: product.storage || '',
+      ram: product.ram || '',
+      description: descriptionText,
       costPrice: product.costPrice,
       salePrice: product.salePrice,
       wholesalePrice: product.wholesalePrice || 0,
@@ -110,65 +102,127 @@ export default function AddProduct() {
       condition: product.condition,
     });
 
-    const categoryName = categories.find(c => c.id === product.categoryId)?.name;
-    if (usesCustomBrandModel(categoryName)) {
-      const brandName = brands.find(b => b.id === product.brandId)?.name || '';
-      setCustomBrand(brandName);
-      let modelPart = '';
-      if (brandName && product.name.toLowerCase().startsWith(brandName.toLowerCase())) {
-        modelPart = product.name.substring(brandName.length).trim();
-      }
-      setCustomModel(modelPart || product.name);
-    } else {
-      setCustomBrand('');
-      setCustomModel('');
+    const brandName = brands.find(b => b.id === product.brandId)?.name || '';
+    setCustomBrand(brandName);
+    
+    let modelPart = product.name;
+    if (brandName && product.name.startsWith(brandName)) {
+      modelPart = product.name.substring(brandName.length).trim();
     }
+    
+    // Remove old suffix specs if they exist in name
+    if (modelPart.includes('–')) {
+      const parts = modelPart.split('–').map(p => p.trim());
+      modelPart = parts[0] || '';
+    }
+    
+    setCustomModel(modelPart);
+    setColorsList(parsedColors);
+    setVariantsList(parsedVariants);
 
     initializedProductId.current = id;
   }, [id, products, brands, categories]);
 
-  // Autofill product name when brand or model changes for Mobiles/Tablets
+  // Autofill base product name dynamically when brand or model changes
   useEffect(() => {
-    const categoryName = categories.find(c => c.id === form.categoryId)?.name;
-    if (usesCustomBrandModel(categoryName)) {
-      setForm(f => ({ ...f, name: `${customBrand} ${customModel}`.trim() }));
+    const brand = customBrand.trim();
+    const model = customModel.trim();
+
+    if (!brand && !model) {
+      return;
     }
-  }, [customBrand, customModel, form.categoryId, categories]);
+
+    const generatedName = `${brand} ${model}`.trim();
+
+    setForm(f => ({
+      ...f,
+      name: generatedName,
+    }));
+  }, [customBrand, customModel]);
 
   const handleChange = (key: keyof ProductFormData, value: any) => {
     setForm(f => ({ ...f, [key]: value }));
     if (errors[key]) setErrors(e => ({ ...e, [key]: '' }));
   };
 
+  const handleAddColor = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const color = newColorInput.trim();
+    if (color && !colorsList.some(c => c.toLowerCase() === color.toLowerCase())) {
+      setColorsList([...colorsList, color]);
+      setNewColorInput('');
+    }
+  };
+
+  const handleRemoveColor = (color: string) => {
+    setColorsList(colorsList.filter(c => c !== color));
+  };
+
+  const handleAddVariant = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const ram = selectedRam.trim();
+    const storage = selectedStorage.trim();
+    if (ram && storage) {
+      const exists = variantsList.some(v => v.ram.toLowerCase() === ram.toLowerCase() && v.storage.toLowerCase() === storage.toLowerCase());
+      if (!exists) {
+        setVariantsList([...variantsList, { ram, storage }]);
+      } else {
+        toast.warning('Duplicate variant', 'This RAM / Storage combination already exists.');
+      }
+    }
+  };
+
+  const handleRemoveVariant = (index: number) => {
+    setVariantsList(variantsList.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     let brandIdToUse = form.brandId;
-    const categoryName = categories.find(c => c.id === form.categoryId)?.name;
 
-    if (usesCustomBrandModel(categoryName)) {
-      if (!customBrand.trim()) {
-        setErrors(errs => ({ ...errs, brandId: 'Brand name is required' }));
+    if (!customBrand.trim()) {
+      setErrors(errs => ({ ...errs, brandId: 'Brand name is required' }));
+      return;
+    }
+
+    if (colorsList.length === 0) {
+      toast.error('Colors Required', 'Please define at least one available color for this product.');
+      return;
+    }
+
+    if (variantsList.length === 0) {
+      toast.error('Variants Required', 'Please define at least one available RAM + Storage variant combination.');
+      return;
+    }
+    
+    const existing = brands.find(b => b.name.toLowerCase() === customBrand.trim().toLowerCase());
+    if (existing) {
+      brandIdToUse = existing.id;
+    } else {
+      const newB = await addBrand({ name: customBrand.trim(), status: 'active' });
+      if (newB) {
+        brandIdToUse = newB.id;
+      } else {
+        setErrors(errs => ({ ...errs, brandId: 'Failed to create brand' }));
         return;
       }
-      
-      const existing = brands.find(b => b.name.toLowerCase() === customBrand.trim().toLowerCase());
-      if (existing) {
-        brandIdToUse = existing.id;
-      } else {
-        const newB = await addBrand({ name: customBrand.trim(), status: 'active' });
-        if (newB) {
-          brandIdToUse = newB.id;
-        } else {
-          setErrors(errs => ({ ...errs, brandId: 'Failed to create brand' }));
-          return;
-        }
-      }
     }
+
+    // Serialize colors and variants inside the description field
+    const descriptionPayload = JSON.stringify({
+      colors: colorsList,
+      variants: variantsList,
+      text: form.description
+    });
 
     const submissionForm = {
       ...form,
       brandId: brandIdToUse,
+      description: descriptionPayload,
+      storage: variantsList.map(v => v.storage).join(', '),
+      ram: variantsList.map(v => v.ram).join(', '),
+      stockQuantity: isEdit ? form.stockQuantity : 0, 
     };
 
     const result = productSchema.safeParse(submissionForm);
@@ -183,12 +237,13 @@ export default function AddProduct() {
 
     const data = result.data;
     if (isEdit && id) {
-      updateProduct(id, {
+      await updateProduct(id, {
         ...data,
         sku: data.sku || `SKU-${Date.now()}`,
         barcode: data.barcode || `BC-${Date.now()}`,
       });
       toast.success('Product updated');
+      navigate('/products');
     } else {
       let unitIdToUse = units[0]?.id;
       if (!unitIdToUse) {
@@ -207,186 +262,254 @@ export default function AddProduct() {
         unitId: unitIdToUse,
         showInPos: true
       });
+      
       if (!newProduct) {
         toast.error('Product creation failed');
         return;
       }
-      toast.success('Product created');
+      
+      toast.success('Product created successfully');
+      navigate(`/products/${newProduct.id}/imeis`);
     }
-    navigate('/products');
   };
 
   const profit = calculateProfit(form.costPrice, form.salePrice);
 
   return (
-    <div>
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate('/products')} className="p-2 rounded-md hover:bg-gray-100 text-gray-600">
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-xl font-semibold text-gray-800">{isEdit ? 'Edit Product' : 'Add New Product'}</h1>
+          <h1 className="text-xl font-semibold text-gray-800">{isEdit ? 'Edit Mobile Product' : 'Add New Mobile Product'}</h1>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => navigate('/products')}>Cancel</Button>
           <Button className="bg-orange-500 hover:bg-orange-600" onClick={handleSubmit}>
-            {isEdit ? 'Update Product' : 'Save Product'}
+            {isEdit ? 'Update Product' : 'Save & Add IMEIs'}
           </Button>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Basic Info */}
+        {/* Device Specifications */}
         <div className="bg-white rounded-lg border border-gray-200">
           <div className="p-4 border-b border-gray-100 flex items-center gap-2">
             <div className="w-1 h-4 bg-orange-500 rounded-full" />
-            <h2 className="font-semibold">Basic Information</h2>
+            <h2 className="font-semibold">Device Specifications</h2>
           </div>
           <div className="p-4 space-y-4">
-            <div>
-              <Label>Product Name *</Label>
-              <Input value={form.name} onChange={e => handleChange('name', e.target.value)} placeholder="e.g., iPhone 14 Pro Max" className={cn(errors.name && 'border-red-500')} />
-              {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
-            </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="hidden"><Label>SKU</Label><Input value={form.sku} onChange={e => handleChange('sku', e.target.value)} placeholder="Auto-generated" /></div>
-              <div><Label>Barcode</Label><Input value={form.barcode} onChange={e => handleChange('barcode', e.target.value)} placeholder="Barcode" /></div>
-            </div>
-            <div>
-              <Label>IMEI (for mobiles)</Label>
-              <Input value={form.imei} onChange={e => handleChange('imei', e.target.value)} placeholder="Enter IMEI number" />
-            </div>
-            {usesCustomBrandModel(categories.find(c => c.id === form.categoryId)?.name) ? (
-              <div className="space-y-4">
-                <div>
-                  <Label>Category *</Label>
-                  <select value={form.categoryId} onChange={e => handleChange('categoryId', e.target.value)} className={cn('w-full h-9 px-3 border rounded-md text-sm', errors.categoryId && 'border-red-500')}>
-                    <option value="">Select Category</option>
-                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                  {errors.categoryId && <p className="text-xs text-red-500 mt-1">{errors.categoryId}</p>}
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Brand *</Label>
-                    <Input
-                      value={customBrand}
-                      onChange={e => {
-                        setCustomBrand(e.target.value);
-                        if (errors.brandId) setErrors(errs => ({ ...errs, brandId: '' }));
-                      }}
-                      placeholder="e.g., Apple, Samsung, Vivo"
-                      className={cn('h-9 bg-white', errors.brandId && 'border-red-500')}
-                    />
-                    {errors.brandId && <p className="text-xs text-red-500 mt-1">{errors.brandId}</p>}
-                  </div>
-                  <div>
-                    <Label>Model *</Label>
-                    <Input
-                      value={customModel}
-                      onChange={e => setCustomModel(e.target.value)}
-                      placeholder="e.g., iPhone 15 Pro, V30"
-                      className="h-9 bg-white"
-                    />
-                  </div>
-                </div>
+              <div>
+                <Label>Category *</Label>
+                <select value={form.categoryId} onChange={e => handleChange('categoryId', e.target.value)} className={cn('w-full h-9 px-3 border rounded-md text-sm bg-white', errors.categoryId && 'border-red-500')}>
+                  <option value="">Select Category</option>
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                {errors.categoryId && <p className="text-xs text-red-500 mt-1">{errors.categoryId}</p>}
               </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Category *</Label>
-                  <select value={form.categoryId} onChange={e => handleChange('categoryId', e.target.value)} className={cn('w-full h-9 px-3 border rounded-md text-sm', errors.categoryId && 'border-red-500')}>
-                    <option value="">Select Category</option>
-                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                  {errors.categoryId && <p className="text-xs text-red-500 mt-1">{errors.categoryId}</p>}
-                </div>
-                <div>
-                  <Label>Brand *</Label>
-                  <select value={form.brandId} onChange={e => handleChange('brandId', e.target.value)} className={cn('w-full h-9 px-3 border rounded-md text-sm', errors.brandId && 'border-red-500')}>
-                    <option value="">Select Brand</option>
-                    {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                  </select>
-                  {errors.brandId && <p className="text-xs text-red-500 mt-1">{errors.brandId}</p>}
-                </div>
-              </div>
-            )}
-            <div>
-              <Label>Condition</Label>
-              <div className="flex gap-3 mt-1">
-                {(['new', 'used', 'refurbished'] as const).map(c => (
-                  <label key={c} className="flex items-center gap-1.5 text-sm cursor-pointer">
-                    <input type="radio" name="condition" checked={form.condition === c} onChange={() => handleChange('condition', c)} className="accent-orange-500" />
-                    <span className="capitalize">{c}</span>
-                  </label>
-                ))}
+              <div>
+                <Label>Brand *</Label>
+                <Input
+                  value={customBrand}
+                  onChange={e => {
+                    setCustomBrand(e.target.value);
+                    if (errors.brandId) setErrors(errs => ({ ...errs, brandId: '' }));
+                  }}
+                  list="brand-options"
+                  placeholder="e.g., Apple, Samsung"
+                  className={cn('h-9 bg-white', errors.brandId && 'border-red-500')}
+                />
+                <datalist id="brand-options">
+                  {brands.map(b => <option key={b.id} value={b.name} />)}
+                </datalist>
+                {errors.brandId && <p className="text-xs text-red-500 mt-1">{errors.brandId}</p>}
               </div>
             </div>
+
             <div>
-              <Label>Description</Label>
-              <Textarea value={form.description} onChange={e => handleChange('description', e.target.value)} placeholder="Product description..." rows={4} />
+              <Label>Model Name *</Label>
+              <Input
+                value={customModel}
+                onChange={e => setCustomModel(e.target.value)}
+                placeholder="e.g., iPhone 15 Pro, Note 13"
+                className="h-9 bg-white"
+              />
+            </div>
+
+            {/* Predefined Color Options */}
+            <div className="space-y-2 border-t pt-4">
+              <div>
+                <Label>Predefined Colors *</Label>
+                <div className="flex gap-1.5 mt-1">
+                  <Input
+                    value={newColorInput}
+                    onChange={e => setNewColorInput(e.target.value)}
+                    placeholder="e.g., Black, Blue, White"
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddColor();
+                      }
+                    }}
+                    className="h-9 bg-white flex-1"
+                  />
+                  <Button type="button" size="sm" onClick={() => handleAddColor()} className="h-9 bg-orange-500 hover:bg-orange-600">
+                    Add
+                  </Button>
+                </div>
+              </div>
+              <div className="rounded-md border border-gray-150 p-2.5 bg-gray-50/50">
+                <Label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Defined Colors</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {colorsList.map(c => (
+                    <span key={c} className="inline-flex items-center gap-1 bg-orange-50 text-orange-700 border border-orange-200 px-2 py-0.5 rounded-full text-xs font-semibold">
+                      {c}
+                      <button type="button" onClick={() => handleRemoveColor(c)} className="hover:text-red-500 ml-0.5 focus:outline-none">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                  {colorsList.length === 0 && (
+                    <span className="text-xs text-gray-400 italic">No color options defined yet. Add at least one color above.</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Predefined RAM & Storage Variants */}
+            <div className="space-y-2 border-t pt-4">
+              <Label className="font-semibold text-sm">Predefined Variants (RAM & Storage Combinations) *</Label>
+              <div className="flex gap-2 mt-1">
+                <div className="flex-1">
+                  <Label className="text-[10px] text-gray-500 uppercase">RAM</Label>
+                  <select value={selectedRam} onChange={e => setSelectedRam(e.target.value)} className="w-full h-9 px-3 border rounded-md text-sm bg-white mt-1">
+                    {['4GB', '6GB', '8GB', '12GB', '16GB', '24GB'].map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <Label className="text-[10px] text-gray-500 uppercase">Storage</Label>
+                  <select value={selectedStorage} onChange={e => setSelectedStorage(e.target.value)} className="w-full h-9 px-3 border rounded-md text-sm bg-white mt-1">
+                    {['64GB', '128GB', '256GB', '512GB', '1TB'].map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <Button type="button" size="sm" onClick={() => handleAddVariant()} className="h-9 bg-orange-500 hover:bg-orange-600">
+                    Add Variant
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-md border border-gray-150 p-2.5 bg-gray-50/50">
+                <Label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Defined Variants</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {variantsList.map((v, i) => (
+                    <span key={i} className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full text-xs font-semibold">
+                      {v.ram} / {v.storage}
+                      <button type="button" onClick={() => handleRemoveVariant(i)} className="hover:text-red-500 ml-0.5 focus:outline-none">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                  {variantsList.length === 0 && (
+                    <span className="text-xs text-gray-400 italic">No variants defined yet. Add at least one combination above.</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <Label>Generated Product Name Preview</Label>
+              <div className="bg-gray-50 border border-gray-200 rounded-md p-2.5 font-medium text-gray-800 min-h-[38px] flex items-center">
+                {form.name || <span className="text-gray-400 text-sm">Enter brand and model to preview...</span>}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Condition</Label>
+                <div className="flex gap-3 mt-2">
+                  {(['new', 'used', 'refurbished'] as const).map(c => (
+                    <label key={c} className="flex items-center gap-1.5 text-sm cursor-pointer select-none">
+                      <input type="radio" name="condition" checked={form.condition === c} onChange={() => handleChange('condition', c)} className="accent-orange-500" />
+                      <span className="capitalize text-gray-700">{c}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Pricing + Inventory */}
+        {/* Pricing & Stock */}
         <div className="space-y-4">
           <div className="bg-white rounded-lg border border-gray-200">
             <div className="p-4 border-b border-gray-100 flex items-center gap-2">
               <div className="w-1 h-4 bg-orange-500 rounded-full" />
-              <h2 className="font-semibold">Pricing</h2>
+              <h2 className="font-semibold">Pricing & Inventory</h2>
             </div>
             <div className="p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <Label>Cost Price (PKR)</Label>
-                  <Input type="number" value={form.costPrice || ''} onChange={e => handleChange('costPrice', parseFloat(e.target.value) || 0)} className={errors.costPrice ? 'border-red-500' : ''} />
+                  <Label>Cost Price *</Label>
+                  <Input type="number" value={form.costPrice || ''} onChange={e => handleChange('costPrice', parseFloat(e.target.value) || 0)} className={cn('h-9 bg-white', errors.costPrice && 'border-red-500')} />
+                  {errors.costPrice && <p className="text-xs text-red-500 mt-1">{errors.costPrice}</p>}
                 </div>
                 <div>
-                  <Label>Sale Price (PKR) *</Label>
-                  <Input type="number" value={form.salePrice || ''} onChange={e => handleChange('salePrice', parseFloat(e.target.value) || 0)} className={errors.salePrice ? 'border-red-500' : ''} />
+                  <Label>Sale Price *</Label>
+                  <Input type="number" value={form.salePrice || ''} onChange={e => handleChange('salePrice', parseFloat(e.target.value) || 0)} className={cn('h-9 bg-white', errors.salePrice && 'border-red-500')} />
                   {errors.salePrice && <p className="text-xs text-red-500 mt-1">{errors.salePrice}</p>}
                 </div>
+                <div>
+                  <Label>Wholesale Price</Label>
+                  <Input type="number" value={form.wholesalePrice || ''} onChange={e => handleChange('wholesalePrice', parseFloat(e.target.value) || 0)} className="h-9 bg-white" />
+                </div>
               </div>
-              <div>
-                <Label>Wholesale Price (PKR)</Label>
-                <Input type="number" value={form.wholesalePrice || ''} onChange={e => handleChange('wholesalePrice', parseFloat(e.target.value) || 0)} />
-              </div>
-              {form.salePrice > 0 && form.costPrice > 0 && (
-                <div className="bg-green-50 rounded-md p-3">
-                  <p className="text-sm text-green-700">
-                    Profit: <span className="font-semibold">{formatCurrency(profit.amount)}</span>
-                    <span className="ml-2">({profit.margin}% margin)</span>
+
+              {/* Profit margin indicators */}
+              <div className="grid grid-cols-2 gap-3 p-3 bg-gray-50 rounded-lg border">
+                <div>
+                  <p className="text-xs text-gray-500 font-medium">Profit Margin</p>
+                  <p className={cn('text-lg font-bold mt-0.5', profit.amount >= 0 ? 'text-green-600' : 'text-red-600')}>
+                    {formatCurrency(profit.amount)}
                   </p>
                 </div>
-              )}
+                <div>
+                  <p className="text-xs text-gray-500 font-medium">Margin Percentage</p>
+                  <p className={cn('text-lg font-bold mt-0.5', profit.amount >= 0 ? 'text-green-600' : 'text-red-600')}>
+                    {profit.margin.toFixed(1)}%
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Min Stock Level</Label>
+                  <Input type="number" value={form.minStockLevel || ''} onChange={e => handleChange('minStockLevel', parseInt(e.target.value) || 0)} className="h-9 bg-white" />
+                </div>
+                <div>
+                  <Label>SKU (Auto-generated if blank)</Label>
+                  <Input value={form.sku} onChange={e => handleChange('sku', e.target.value)} placeholder="Auto-generated" className="h-9 bg-white" />
+                </div>
+              </div>
             </div>
           </div>
 
           <div className="bg-white rounded-lg border border-gray-200">
             <div className="p-4 border-b border-gray-100 flex items-center gap-2">
               <div className="w-1 h-4 bg-orange-500 rounded-full" />
-              <h2 className="font-semibold">Inventory</h2>
+              <h2 className="font-semibold">Additional Details</h2>
             </div>
             <div className="p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Stock Quantity *</Label>
-                  <Input type="number" value={form.stockQuantity || ''} onChange={e => handleChange('stockQuantity', parseInt(e.target.value) || 0)} className={errors.stockQuantity ? 'border-red-500' : ''} />
-                  {errors.stockQuantity && <p className="text-xs text-red-500 mt-1">{errors.stockQuantity}</p>}
-                </div>
-                <div>
-                  <Label>Min Stock Level</Label>
-                  <Input type="number" value={form.minStockLevel || ''} onChange={e => handleChange('minStockLevel', parseInt(e.target.value) || 0)} />
-                </div>
+              <div>
+                <Label>Barcode (Auto-generated if blank)</Label>
+                <Input value={form.barcode} onChange={e => handleChange('barcode', e.target.value)} placeholder="Auto-generated" className="h-9 bg-white" />
               </div>
-              <div className="flex items-center justify-between">
-                <Label>Status</Label>
-                <div className="flex items-center gap-2">
-                  <Switch checked={form.status === 'active'} onCheckedChange={v => handleChange('status', v ? 'active' : 'inactive')} />
-                  <span className="text-sm">{form.status === 'active' ? 'Active' : 'Inactive'}</span>
-                </div>
+              <div>
+                <Label>Product Description</Label>
+                <Textarea value={form.description} onChange={e => handleChange('description', e.target.value)} placeholder="Enter details..." rows={4} className="bg-white" />
               </div>
             </div>
           </div>
