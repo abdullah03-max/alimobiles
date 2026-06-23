@@ -529,7 +529,7 @@ export default function Purchases() {
             <div className="flex items-center justify-between w-full">
               <DialogTitle className="text-lg font-bold">Purchase Bill Detail</DialogTitle>
               <button
-                onClick={() => printReceipt('purchase-invoice-print', 'A4')}
+                onClick={() => printReceipt('purchase-invoice-print', useSettingsStore.getState().receiptSettings.receiptWidth)}
                 className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-gray-900"
                 title="Print Invoice"
               >

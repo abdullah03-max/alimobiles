@@ -121,7 +121,7 @@ export default function Sales() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => printReceipt('invoice-receipt', 'A4')}
+                  onClick={() => printReceipt('invoice-receipt', receiptSettings.receiptWidth)}
                 >
                   <Printer className="w-4 h-4 mr-1" />Print
                 </Button>

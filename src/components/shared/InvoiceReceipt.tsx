@@ -418,27 +418,9 @@ export default function InvoiceReceipt({
           </tbody>
         </table>
 
-        {/* Bottom Three Boxes Compartments */}
-        <div className="grid grid-cols-3 border border-black border-t-0 text-xs font-semibold">
-          {/* Left Box: IMEI Barcode Section */}
-          <div className="border-r border-black p-2 flex flex-col justify-start text-left">
-            <span className="text-gray-500 block mb-1">IMEI Barcodes:</span>
-            {(() => {
-              const imeiItems = sale.items.filter(item => item.imei && item.imei.trim() !== '');
-              if (imeiItems.length > 0) {
-                return (
-                  <div className="flex flex-col gap-2 pt-1">
-                    {imeiItems.map((item, idx) => (
-                      <Barcode key={idx} value={item.imei!} height={30} widthScale={1.0} className="w-full flex flex-col items-center border border-gray-150 p-1 bg-gray-50 rounded" />
-                    ))}
-                  </div>
-                );
-              }
-              return <span className="text-gray-400 italic text-[10px]">No mobile phones sold.</span>;
-            })()}
-          </div>
-          
-          {/* Middle Box: Amount in Words */}
+        {/* Bottom Two Boxes Compartments */}
+        <div className="grid grid-cols-2 border border-black border-t-0 text-xs font-semibold">
+          {/* Left Box: Amount in Words */}
           <div className="border-r border-black p-2 flex flex-col justify-between text-left">
             <div>
               <span className="text-gray-500 block mb-1">Amount in Words :</span>
@@ -493,10 +475,26 @@ export default function InvoiceReceipt({
           </div>
         </div>
 
+        {/* IMEI Barcode Section (Moved to the very end) */}
+        {(() => {
+          const imeiItems = sale.items.filter(item => item.imei && item.imei.trim() !== '');
+          if (imeiItems.length > 0) {
+            return (
+              <div className="border-t border-dashed border-gray-300 pt-4 flex flex-col items-center space-y-3 barcode-container">
+                <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">IMEI Barcodes</span>
+                <div className="flex flex-col items-center gap-3 w-full">
+                  {imeiItems.map((item, idx) => (
+                    <Barcode key={idx} value={item.imei!} height={40} widthScale={1.2} className="p-2 bg-white border border-gray-200 rounded shadow-sm" />
+                  ))}
+                </div>
+              </div>
+            );
+          }
+          return null;
+        })()}
+
         {/* Bottom Metadata Line */}
-        <div className="flex justify-between text-[10px] text-gray-400 border-t pt-2 mt-2">
-          <div>Created By: <span className="font-medium text-gray-600">{sale.createdBy || 'Administrator'}</span></div>
-          <div>Modified By: <span className="font-medium text-gray-600">—</span></div>
+        <div className="flex justify-end text-[10px] text-gray-400 border-t pt-2 mt-2">
           <div>Time: <span className="font-medium text-gray-600">{formattedTime}</span></div>
         </div>
       </div>

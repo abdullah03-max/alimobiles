@@ -660,7 +660,7 @@ export default function Pos() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => printReceipt('receipt', 'A4')}
+                  onClick={() => printReceipt('receipt', receiptSettings.receiptWidth)}
                   disabled={!completedSale}
                 >
                   <Printer className="w-4 h-4 mr-2" />
