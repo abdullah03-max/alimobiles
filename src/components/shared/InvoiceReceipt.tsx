@@ -389,7 +389,6 @@ export default function InvoiceReceipt({
                   <td className="border border-black p-2 text-center">{index + 1}</td>
                   <td className="border border-black p-2 text-left font-bold uppercase">
                     <div>{item.productName}</div>
-                    {item.imei && <div className="text-[10px] text-gray-500 font-mono mt-0.5">IMEI: {item.imei}</div>}
                   </td>
                   <td className="border border-black p-2 text-center">{item.quantity}</td>
                   <td className="border border-black p-2 text-right">{formatCurrency(rate)}</td>

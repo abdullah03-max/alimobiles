@@ -16,20 +16,24 @@ export function usePrint() {
         const pageW = receiptWidth === '80mm' ? '80mm' : '58mm';
         style = `
           @page { size: ${pageW} auto; margin: 0; }
-          html, body { margin: 0; padding: 0; width: ${pageW}; font-family: system-ui, -apple-system, sans-serif; background: #fff; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          * { box-sizing: border-box; }
+          html, body { margin: 0; padding: 0; width: ${pageW}; font-family: system-ui, -apple-system, sans-serif; background: #fff; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-weight: bold !important; }
+          * { box-sizing: border-box; font-weight: bold !important; }
+          
+          /* Remove top margin/padding space from receipt */
           .wide-invoice {
             width: ${printW} !important;
             max-width: ${printW} !important;
             margin: 0 auto !important;
-            padding: 2mm 1mm !important;
+            padding: 0mm 1mm 2mm 1mm !important;
             background: #fff;
             border: none !important;
             box-shadow: none !important;
           }
           .wide-invoice h2 {
             font-size: 16px !important;
+            margin-top: 0 !important;
             margin-bottom: 2px !important;
+            font-weight: 900 !important;
           }
           table {
             width: 100% !important;
@@ -42,15 +46,37 @@ export function usePrint() {
             border: 1px solid #000 !important;
             padding: 4px 2px !important;
             font-size: 10px !important;
-            word-break: break-all !important;
-            overflow-wrap: break-word !important;
-            white-space: normal !important;
+            font-weight: bold !important;
           }
           th {
             background-color: #f3f4f6 !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
+          
+          /* Prevent price wrap: keep Rate, Disc. %, Net Rate, Value in one line */
+          td:nth-child(1), td:nth-child(3), td:nth-child(4), td:nth-child(5), td:nth-child(6), td:nth-child(7) {
+            white-space: nowrap !important;
+            word-break: keep-all !important;
+            overflow-wrap: normal !important;
+          }
+          
+          /* Wrap only the item description column */
+          td:nth-child(2) {
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
+          }
+          
+          /* Table column widths for thermal printing */
+          table th:nth-child(1), table td:nth-child(1) { width: 9% !important; text-align: center; } /* Sr# */
+          table th:nth-child(2), table td:nth-child(2) { width: 31% !important; text-align: left; } /* Description */
+          table th:nth-child(3), table td:nth-child(3) { width: 8% !important; text-align: center; } /* Qty */
+          table th:nth-child(4), table td:nth-child(4) { width: 14% !important; text-align: right; } /* Rate */
+          table th:nth-child(5), table td:nth-child(5) { width: 10% !important; text-align: right; } /* Disc. % */
+          table th:nth-child(6), table td:nth-child(6) { width: 14% !important; text-align: right; } /* Net Rate */
+          table th:nth-child(7), table td:nth-child(7) { width: 14% !important; text-align: right; } /* Value */
+
           .grid { display: grid !important; }
           .grid-cols-2 { display: grid !important; grid-template-cols: 55% 45% !important; }
           .grid-cols-3 { display: grid !important; grid-template-cols: 1fr 1fr 1fr !important; }
@@ -79,6 +105,14 @@ export function usePrint() {
           .text-blue-700 { color: #000 !important; }
           .text-gray-500 { color: #000 !important; }
           .text-gray-700 { color: #000 !important; }
+          
+          /* Urdu warranty statement styles */
+          div[style*="direction: rtl"] {
+            font-weight: 900 !important;
+            font-size: 13px !important;
+            color: #000 !important;
+          }
+          
           .barcode-container {
             width: 100% !important;
             display: flex !important;

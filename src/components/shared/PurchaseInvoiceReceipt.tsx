@@ -403,7 +403,6 @@ export default function PurchaseInvoiceReceipt({
                   ) : (
                     group.storage && <div className="text-[10px] text-gray-600">Storage: {group.storage}</div>
                   )}
-                  {im.imei && <div className="text-[10px] text-gray-700 font-mono font-bold mt-1 border-t pt-1 bg-gray-50 p-1">IMEI: {im.imei}</div>}
                 </td>
                 <td className="border border-black p-2 text-left">{im.color || getProductById(group.productId)?.color || '-'}</td>
                 <td className="border border-black p-2 text-center">1</td>
