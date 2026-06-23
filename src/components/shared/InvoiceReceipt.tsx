@@ -330,16 +330,16 @@ export default function InvoiceReceipt({
         </div>
 
         {/* Customer & Invoice Meta Box */}
-        <table className="w-full border-collapse border border-black text-xs font-semibold my-4">
+        <table className="w-full border-collapse border border-black text-[12px] font-bold">
           <tbody>
             <tr className="border-b border-black">
-              <td className="p-2 border-r border-black w-[60%] text-left">
+              <td className="p-2 w-[60%] border-r border-black text-left">
                 <span className="font-normal text-gray-500">Customer : </span>
-                <span className="font-bold text-gray-900">{customerName}</span>
+                <span className="text-gray-900">{sale.customerName || 'Walk-in Customer'}</span>
               </td>
               <td className="p-2 w-[40%] text-left">
                 <span className="font-normal text-gray-500">Inv # : </span>
-                <span className="font-bold text-gray-900">{sale.invoiceNumber}</span>
+                <span className="text-gray-900">{sale.invoiceNumber}</span>
               </td>
             </tr>
             <tr className="border-b border-black">
@@ -366,7 +366,7 @@ export default function InvoiceReceipt({
         </table>
 
         {/* Items Grid Table */}
-        <table className="w-full border-collapse border border-black text-[12px] my-4">
+        <table className="items-table w-full border-collapse border border-black text-[12px] my-4">
           <thead>
             <tr className="bg-gray-100 font-bold border-b border-black text-xs">
               <th className="border border-black p-2 text-center w-10">Sr#</th>
@@ -375,14 +375,12 @@ export default function InvoiceReceipt({
               <th className="border border-black p-2 text-right w-20">Rate</th>
               <th className="border border-black p-2 text-right w-16">Disc. %</th>
               <th className="border border-black p-2 text-right w-20">Net Rate</th>
-              <th className="border border-black p-2 text-right w-24">Value</th>
             </tr>
           </thead>
           <tbody>
             {sale.items.map((item, index) => {
               const rate = item.unitPrice;
               const netRate = rate * (1 - discountPercent / 100);
-              const value = item.quantity * netRate;
 
               return (
                 <tr key={index} className="text-[12px] hover:bg-gray-50">
@@ -393,8 +391,7 @@ export default function InvoiceReceipt({
                   <td className="border border-black p-2 text-center">{item.quantity}</td>
                   <td className="border border-black p-2 text-right">{formatCurrency(rate)}</td>
                   <td className="border border-black p-2 text-right">{discPercentStr}</td>
-                  <td className="border border-black p-2 text-right">{formatCurrency(netRate)}</td>
-                  <td className="border border-black p-2 text-right font-semibold">{formatCurrency(value)}</td>
+                  <td className="border border-black p-2 text-right font-bold">{formatCurrency(netRate)}</td>
                 </tr>
               );
             })}
@@ -410,7 +407,7 @@ export default function InvoiceReceipt({
                 {formatCurrency(sale.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0))}
               </td>
               <td className="border border-black p-2 text-right">{discPercentStr}</td>
-              <td className="border border-black p-2 text-right font-bold" colSpan={2}>
+              <td className="border border-black p-2 text-right font-bold">
                 {formatCurrency(sale.grandTotal)}
               </td>
             </tr>

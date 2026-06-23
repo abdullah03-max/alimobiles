@@ -379,7 +379,7 @@ export default function PurchaseInvoiceReceipt({
         </table>
 
         {/* Items Grid Table */}
-        <table className="w-full border-collapse border border-black text-[12px] my-4">
+        <table className="items-table w-full border-collapse border border-black text-[12px] my-4">
           <thead>
             <tr className="bg-gray-100 font-bold border-b border-black text-xs">
               <th className="border border-black p-2 text-center w-10">Sr#</th>
@@ -387,7 +387,6 @@ export default function PurchaseInvoiceReceipt({
               <th className="border border-black p-2 text-center w-20">Color</th>
               <th className="border border-black p-2 text-center w-12">Qty</th>
               <th className="border border-black p-2 text-right w-20">Cost</th>
-              <th className="border border-black p-2 text-right w-24">Total</th>
             </tr>
           </thead>
           <tbody>
@@ -406,8 +405,7 @@ export default function PurchaseInvoiceReceipt({
                 </td>
                 <td className="border border-black p-2 text-left">{im.color || getProductById(group.productId)?.color || '-'}</td>
                 <td className="border border-black p-2 text-center">1</td>
-                <td className="border border-black p-2 text-right">{formatCurrency(group.unitCost)}</td>
-                <td className="border border-black p-2 text-right font-semibold">{formatCurrency(group.unitCost)}</td>
+                <td className="border border-black p-2 text-right font-bold">{formatCurrency(group.unitCost)}</td>
               </tr>
             )))}
             {/* Total summary row */}
@@ -417,9 +415,6 @@ export default function PurchaseInvoiceReceipt({
               </td>
               <td className="border border-black p-2 text-center">
                 {purchase.items.reduce((sum, item) => sum + item.quantity, 0)}
-              </td>
-              <td className="border border-black p-2 text-right">
-                —
               </td>
               <td className="border border-black p-2 text-right font-bold">
                 {formatCurrency(purchase.grandTotal)}
