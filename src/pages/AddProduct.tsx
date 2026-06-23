@@ -484,15 +484,9 @@ export default function AddProduct() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Min Stock Level</Label>
-                  <Input type="number" value={form.minStockLevel || ''} onChange={e => handleChange('minStockLevel', parseInt(e.target.value) || 0)} className="h-9 bg-white" />
-                </div>
-                <div>
-                  <Label>SKU (Auto-generated if blank)</Label>
-                  <Input value={form.sku} onChange={e => handleChange('sku', e.target.value)} placeholder="Auto-generated" className="h-9 bg-white" />
-                </div>
+              <div>
+                <Label>Min Stock Level</Label>
+                <Input type="number" value={form.minStockLevel || ''} onChange={e => handleChange('minStockLevel', parseInt(e.target.value) || 0)} className="h-9 bg-white" />
               </div>
             </div>
           </div>
@@ -503,10 +497,6 @@ export default function AddProduct() {
               <h2 className="font-semibold">Additional Details</h2>
             </div>
             <div className="p-4 space-y-4">
-              <div>
-                <Label>Barcode (Auto-generated if blank)</Label>
-                <Input value={form.barcode} onChange={e => handleChange('barcode', e.target.value)} placeholder="Auto-generated" className="h-9 bg-white" />
-              </div>
               <div>
                 <Label>Product Description</Label>
                 <Textarea value={form.description} onChange={e => handleChange('description', e.target.value)} placeholder="Enter details..." rows={4} className="bg-white" />
