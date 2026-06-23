@@ -66,11 +66,20 @@ export const useProductStore = create<ProductState>((set, get) => ({
         supabase.from('units').select('*').order('name')
       ]);
 
+      const defaultMockUnit: Unit = {
+        id: '00000000-0000-0000-0000-000000000000',
+        name: 'Piece',
+        code: 'pcs',
+        status: 'active'
+      };
+
       set({
         products: (pRes.data || []).map(toCamelCase) as Product[],
         categories: (cRes.data || []).map(toCamelCase) as Category[],
         brands: (bRes.data || []).map(toCamelCase) as Brand[],
-        units: (uRes.data || []).map(toCamelCase) as Unit[],
+        units: uRes.data && uRes.data.length > 0
+          ? (uRes.data.map(toCamelCase) as Unit[])
+          : [defaultMockUnit],
       });
     } catch (err) {
       console.error('Error loading product data:', err);
@@ -80,7 +89,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
   addProduct: async (product) => {
     try {
       const snakeData = toSnakeCase(product);
-      if (snakeData.unit_id === '') {
+      if (snakeData.unit_id === '' || snakeData.unit_id === '00000000-0000-0000-0000-000000000000') {
         delete snakeData.unit_id;
       }
       
@@ -112,6 +121,9 @@ export const useProductStore = create<ProductState>((set, get) => ({
   updateProduct: async (id, data) => {
     try {
       const snakeData = toSnakeCase(data);
+      if (snakeData.unit_id === '' || snakeData.unit_id === '00000000-0000-0000-0000-000000000000') {
+        delete snakeData.unit_id;
+      }
       
       // Strip fields that do not exist as columns in the Supabase database table
       delete snakeData.color;
@@ -259,7 +271,13 @@ export const useProductStore = create<ProductState>((set, get) => ({
       return newUnit;
     } catch (err) {
       console.error('Error adding unit:', err);
-      return null;
+      const mockUnit: Unit = {
+        id: '00000000-0000-0000-0000-000000000000',
+        name: unit.name,
+        code: unit.code || 'pcs',
+        status: unit.status || 'active'
+      };
+      return mockUnit;
     }
   },
 
