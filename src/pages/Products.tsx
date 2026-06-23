@@ -183,6 +183,17 @@ export default function Products() {
                     model = product.name.substring(brand.name.length).trim();
                   }
                 }
+
+                // Extract PTA status from description
+                let ptaStatus = '';
+                if (product.description && product.description.startsWith('{')) {
+                  try {
+                    const parsed = JSON.parse(product.description);
+                    ptaStatus = parsed.ptaStatus || '';
+                  } catch (e) {
+                    // ignore
+                  }
+                }
                 
                 return (
                   <tr key={product.id} className="border-b border-gray-50 hover:bg-gray-50">
@@ -190,7 +201,22 @@ export default function Products() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="w-9 h-9 bg-gray-100 rounded-md flex items-center justify-center"><Package className="w-4 h-4 text-gray-400" /></div>
-                        <div><p className="font-medium text-gray-800">{product.name}</p>{product.imei && <p className="text-[11px] text-gray-500">{product.imei}</p>}</div>
+                        <div>
+                          <p className="font-medium text-gray-800 flex items-center gap-1.5">
+                            {product.name}
+                            {ptaStatus && (
+                              <span className={cn(
+                                'inline-block px-1.5 py-0.5 rounded text-[9px] font-bold border whitespace-nowrap',
+                                ptaStatus === 'approved' 
+                                  ? 'bg-green-50 text-green-700 border-green-200' 
+                                  : 'bg-red-50 text-red-700 border-red-200'
+                              )}>
+                                {ptaStatus === 'approved' ? 'PTA' : 'Non PTA'}
+                              </span>
+                            )}
+                          </p>
+                          {product.imei && <p className="text-[11px] text-gray-500">{product.imei}</p>}
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-3"><span className="px-2 py-0.5 bg-gray-100 rounded text-xs">{category?.name}</span></td>
@@ -251,13 +277,15 @@ export default function Products() {
             const category = categories.find(c => c.id === detailProduct.categoryId);
             const brand = brands.find(b => b.id === detailProduct.brandId);
             
-            // Parse predefined colors
+            // Parse predefined colors and PTA status
             let descriptionText = detailProduct.description || '';
             let parsedColors: string[] = [];
+            let ptaStatus: string = '';
             if (descriptionText.startsWith('{')) {
               try {
                 const parsed = JSON.parse(descriptionText);
                 parsedColors = parsed.colors || [];
+                ptaStatus = parsed.ptaStatus || '';
                 descriptionText = parsed.text || '';
               } catch (e) {
                 // fallback
@@ -281,9 +309,21 @@ export default function Products() {
                   <div className="w-12 h-12 bg-orange-50 rounded-lg flex items-center justify-center text-orange-500">
                     <Package className="w-6 h-6" />
                   </div>
-                  <div>
-                    <h3 className="font-bold text-lg text-gray-800">{detailProduct.name}</h3>
-                    <p className="text-xs text-gray-500">
+                  <div className="flex-1">
+                    <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
+                      {detailProduct.name}
+                      {ptaStatus && (
+                        <span className={cn(
+                          'px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap',
+                          ptaStatus === 'approved' 
+                            ? 'bg-green-50 text-green-700 border-green-200' 
+                            : 'bg-red-50 text-red-700 border-red-200'
+                        )}>
+                          {ptaStatus === 'approved' ? 'PTA Approved' : 'Non PTA'}
+                        </span>
+                      )}
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-1">
                       Category: <span className="font-semibold">{category?.name || '—'}</span> | Brand: <span className="font-semibold">{brand?.name || '—'}</span>
                     </p>
                   </div>

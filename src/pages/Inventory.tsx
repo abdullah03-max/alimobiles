@@ -84,13 +84,15 @@ export default function Inventory() {
       const brandName = getBrandName(p.brandId);
       const modelName = getModelName(p.name, brandName);
 
-      // Predefined colors list
+      // Predefined colors and PTA Status
       let parsedColors: string[] = [];
+      let ptaStatus = '';
       if (p.color) parsedColors.push(p.color);
       if (p.description && p.description.startsWith('{')) {
         try {
           const parsed = JSON.parse(p.description);
           if (parsed.colors) parsedColors.push(...parsed.colors);
+          ptaStatus = parsed.ptaStatus || '';
         } catch (e) {
           // Ignore parse errors
         }
@@ -105,6 +107,7 @@ export default function Inventory() {
         brandName,
         modelName,
         allColors,
+        ptaStatus,
         imeis: productImeis,
         availableImeis,
         soldImeis,
@@ -332,6 +335,16 @@ export default function Inventory() {
                         {p.ram && (
                           <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-100">
                             {p.ram} RAM
+                          </span>
+                        )}
+                        {p.ptaStatus && (
+                          <span className={cn(
+                            'px-2.5 py-0.5 rounded-full text-xs font-semibold border',
+                            p.ptaStatus === 'approved' 
+                              ? 'bg-green-50 text-green-700 border-green-100' 
+                              : 'bg-red-50 text-red-700 border-red-100'
+                          )}>
+                            {p.ptaStatus === 'approved' ? 'PTA Approved' : 'Non PTA'}
                           </span>
                         )}
                       </div>
