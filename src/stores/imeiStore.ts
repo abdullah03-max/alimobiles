@@ -17,6 +17,8 @@ interface ImeiState {
   countAvailable: (productId: string) => number;
   markImeiSold: (imei: string) => Promise<boolean>;
   markImeiAvailable: (imei: string) => Promise<boolean>;
+  deleteImeisByProduct: (productId: string) => ProductIMEI[];
+  restoreImeis: (imeis: ProductIMEI[]) => void;
 }
 
 function readLocalStorage(): ProductIMEI[] {
@@ -146,5 +148,20 @@ export const useImeiStore = create<ImeiState>((set, get) => ({
     const available = get().countAvailable(existing.productId);
     await useProductStore.getState().updateProduct(existing.productId, { stockQuantity: available });
     return true;
+  },
+
+  deleteImeisByProduct: (productId) => {
+    const allImeis = get().imeis;
+    const related = allImeis.filter(i => i.productId === productId);
+    const remaining = allImeis.filter(i => i.productId !== productId);
+    set({ imeis: remaining });
+    writeLocalStorage(remaining);
+    return related;
+  },
+
+  restoreImeis: (restored) => {
+    const nextImeis = [...restored, ...get().imeis];
+    set({ imeis: nextImeis });
+    writeLocalStorage(nextImeis);
   },
 }));

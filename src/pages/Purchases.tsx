@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Plus, Search, Eye, Trash2, Smartphone, CheckCircle2, Printer, Palette, Calendar, Hash, FileText } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { usePrint } from '@/hooks/usePrint';
 
 // Define the PurchaseItem structure inside the page
 interface ScannedPurchaseItem {
@@ -34,6 +35,7 @@ export default function Purchases() {
   const { products, brands, loadData: loadProducts } = useProductStore();
   const { loadData: loadImeis, imeis } = useImeiStore();
   const toast = useToast();
+  const { printReceipt } = usePrint();
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [viewPurchase, setViewPurchase] = useState<typeof purchases[0] | null>(null);
@@ -527,21 +529,7 @@ export default function Purchases() {
             <div className="flex items-center justify-between w-full">
               <DialogTitle className="text-lg font-bold">Purchase Bill Detail</DialogTitle>
               <button
-                onClick={() => {
-                  const invoiceElement = document.getElementById('purchase-invoice-print');
-                  if (invoiceElement) {
-                    const printWindow = window.open('', '', 'height=600,width=800');
-                    if (printWindow) {
-                      printWindow.document.write('<html><head><title>Purchase Invoice</title>');
-                      printWindow.document.write('<link rel="stylesheet" href="' + window.location.href + '">');
-                      printWindow.document.write('</head><body>');
-                      printWindow.document.write(invoiceElement.innerHTML);
-                      printWindow.document.write('</body></html>');
-                      printWindow.document.close();
-                      printWindow.print();
-                    }
-                  }
-                }}
+                onClick={() => printReceipt('purchase-invoice-print', 'A4')}
                 className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-gray-900"
                 title="Print Invoice"
               >

@@ -6,6 +6,7 @@ import logoImage from '@/assets/—Pngtree—ali urdu calligraphy free eps_57395
 import { useSupplierStore } from '@/stores/supplierStore';
 import { useProductStore } from '@/stores/productStore';
 import { useImeiStore } from '@/stores/imeiStore';
+import Barcode from './Barcode';
 
 interface PurchaseInvoiceReceiptProps {
   purchase: Purchase;
@@ -140,7 +141,7 @@ export default function PurchaseInvoiceReceipt({
   className,
   id,
   screen = false,
-  layout = 'thermal',
+  layout = 'a4',
 }: PurchaseInvoiceReceiptProps) {
   const { getSupplierById } = useSupplierStore();
   const { getProductById } = useProductStore();
@@ -430,22 +431,22 @@ export default function PurchaseInvoiceReceipt({
 
         {/* Bottom Three Boxes Compartments */}
         <div className="grid grid-cols-3 border border-black border-t-0 text-xs font-semibold">
-          {/* Left Box: Status Info */}
-          <div className="border-r border-black p-2 space-y-1 text-left">
-            <div className="flex justify-between">
-              <span className="text-gray-500">PO Status:</span>
-              <span className={purchase.status === 'received' ? 'text-green-600' : purchase.status === 'pending' ? 'text-yellow-600' : 'text-gray-600'}>
-                {purchase.status.toUpperCase()}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Total Items:</span>
-              <span>{purchase.items.length}</span>
-            </div>
-            <div className="flex justify-between border-t border-dashed border-gray-400 pt-1">
-              <span className="text-gray-700">Total Qty:</span>
-              <span>{purchase.items.reduce((sum, item) => sum + item.quantity, 0)}</span>
-            </div>
+          {/* Left Box: IMEI Barcode Section */}
+          <div className="border-r border-black p-2 flex flex-col justify-start text-left">
+            <span className="text-gray-500 block mb-1">IMEI Barcodes:</span>
+            {(() => {
+              const imeiItems = purchase.items.filter(item => item.imei && item.imei.trim() !== '');
+              if (imeiItems.length > 0) {
+                return (
+                  <div className="flex flex-col gap-2 pt-1">
+                    {imeiItems.map((item, idx) => (
+                      <Barcode key={idx} value={item.imei!} height={30} widthScale={1.0} className="w-full flex flex-col items-center border border-gray-150 p-1 bg-gray-50 rounded" />
+                    ))}
+                  </div>
+                );
+              }
+              return <span className="text-gray-400 italic text-[10px]">No mobile phones purchased.</span>;
+            })()}
           </div>
           
           {/* Middle Box: Amount in Words */}

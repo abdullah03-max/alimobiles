@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Product, Category, Brand, Unit } from '@/types';
 import { supabase } from '@/lib/supabaseClient';
+import { useImeiStore } from './imeiStore';
 
 interface ProductState {
   products: Product[];
@@ -11,7 +12,7 @@ interface ProductState {
   loadData: () => Promise<void>;
   addProduct: (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Product | null>;
   updateProduct: (id: string, data: Partial<Product>) => Promise<void>;
-  deleteProduct: (id: string) => Promise<void>;
+  deleteProduct: (id: string) => Promise<boolean>;
   addCategory: (category: Omit<Category, 'id' | 'createdAt'>) => Promise<Category | null>;
   updateCategory: (id: string, data: Partial<Category>) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
@@ -132,12 +133,19 @@ export const useProductStore = create<ProductState>((set, get) => ({
   },
 
   deleteProduct: async (id) => {
+    const imeiStore = useImeiStore.getState();
+    const deletedImeis = imeiStore.deleteImeisByProduct(id);
     try {
       const { error } = await supabase.from('products').delete().eq('id', id);
-      if (error) throw error;
+      if (error) {
+        imeiStore.restoreImeis(deletedImeis);
+        throw error;
+      }
       set({ products: get().products.filter(p => p.id !== id) });
+      return true;
     } catch (err) {
       console.error('Error deleting product:', err);
+      return false;
     }
   },
 

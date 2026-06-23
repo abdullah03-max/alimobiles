@@ -660,11 +660,11 @@ export default function Pos() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => printReceipt('receipt', receiptSettings.receiptWidth)}
+                  onClick={() => printReceipt('receipt', 'A4')}
                   disabled={!completedSale}
                 >
                   <Printer className="w-4 h-4 mr-2" />
-                  Print Receipt
+                  Print Invoice
                 </Button>
                 <Button type="button" onClick={handleNewSale} className="bg-orange-500 hover:bg-orange-600">
                   New Sale

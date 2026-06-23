@@ -62,10 +62,14 @@ export default function Products() {
     outOfStock: products.filter(p => getStockStatus(p.stockQuantity, p.minStockLevel) === 'out_of_stock').length,
   }), [products]);
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (deleteId) {
-      deleteProduct(deleteId);
-      toast.success('Product deleted');
+      const success = await deleteProduct(deleteId);
+      if (success) {
+        toast.success('Product deleted');
+      } else {
+        toast.error('Delete failed', 'Could not delete product. It may be referenced in other transactions.');
+      }
       setDeleteId(null);
     }
   };

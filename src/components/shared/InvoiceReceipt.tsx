@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import logoImage from '@/assets/—Pngtree—ali urdu calligraphy free eps_5739559.png';
 import { useCustomerStore } from '@/stores/customerStore';
 import { useSaleStore } from '@/stores/saleStore';
+import Barcode from './Barcode';
 
 interface InvoiceReceiptProps {
   sale: Sale;
@@ -130,7 +131,7 @@ export default function InvoiceReceipt({
   className,
   id,
   screen = false,
-  layout = 'thermal',
+  layout = 'a4',
 }: InvoiceReceiptProps) {
   const paymentLabel = sale.paymentMethod.replace(/_/g, ' ');
   const printWidth = receiptSettings.receiptWidth === '58mm' ? 32 : 46;
@@ -419,20 +420,22 @@ export default function InvoiceReceipt({
 
         {/* Bottom Three Boxes Compartments */}
         <div className="grid grid-cols-3 border border-black border-t-0 text-xs font-semibold">
-          {/* Left Box: Balances */}
-          <div className="border-r border-black p-2 space-y-1 text-left">
-            <div className="flex justify-between">
-              <span className="text-gray-500">Inv. Balance:</span>
-              <span>{formatCurrency(invBalance)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Previous Balance:</span>
-              <span>{formatCurrency(previousBalance)}</span>
-            </div>
-            <div className="flex justify-between border-t border-dashed border-gray-400 pt-1 font-bold">
-              <span className="text-gray-700">Current Balance:</span>
-              <span>{formatCurrency(currentBalance)}</span>
-            </div>
+          {/* Left Box: IMEI Barcode Section */}
+          <div className="border-r border-black p-2 flex flex-col justify-start text-left">
+            <span className="text-gray-500 block mb-1">IMEI Barcodes:</span>
+            {(() => {
+              const imeiItems = sale.items.filter(item => item.imei && item.imei.trim() !== '');
+              if (imeiItems.length > 0) {
+                return (
+                  <div className="flex flex-col gap-2 pt-1">
+                    {imeiItems.map((item, idx) => (
+                      <Barcode key={idx} value={item.imei!} height={30} widthScale={1.0} className="w-full flex flex-col items-center border border-gray-150 p-1 bg-gray-50 rounded" />
+                    ))}
+                  </div>
+                );
+              }
+              return <span className="text-gray-400 italic text-[10px]">No mobile phones sold.</span>;
+            })()}
           </div>
           
           {/* Middle Box: Amount in Words */}
