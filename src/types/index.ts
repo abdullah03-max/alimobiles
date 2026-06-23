@@ -29,6 +29,8 @@ type ProductIMEI = {
   id: string;
   productId: string;
   imei: string;
+  imei1: string;
+  imei2: string;
   status: 'available' | 'sold';
   color?: string;
   createdAt: string;
@@ -110,6 +112,8 @@ type SaleItem = {
   unitPrice: number;
   total: number;
   imei?: string;
+  imei1?: string;
+  imei2?: string;
 };
 
 // Sale
@@ -140,6 +144,8 @@ type PurchaseItem = {
   unitCost: number;
   total: number;
   imei?: string;
+  imei1?: string;
+  imei2?: string;
   color?: string;
   storage?: string;
   ram?: string;
@@ -194,6 +200,8 @@ type ReturnItem = {
   total: number;
   reason: string;
   imei?: string;
+  imei1?: string;
+  imei2?: string;
 };
 
 // Inventory Adjustment
@@ -299,6 +307,8 @@ type CartItem = {
   unitPrice: number;
   total: number;
   imei?: string;
+  imei1?: string;
+  imei2?: string;
   color?: string;
   maxStock: number;
 };

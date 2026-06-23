@@ -483,14 +483,23 @@ export default function PurchaseInvoiceReceipt({
 
         {/* IMEI Barcode Section (Moved to the very end) */}
         {(() => {
-          const imeiItems = purchase.items.filter(item => item.imei && item.imei.trim() !== '');
+          const imeiItems = purchase.items.filter(item => (item.imei1 && item.imei1.trim() !== '') || (item.imei && item.imei.trim() !== ''));
           if (imeiItems.length > 0) {
             return (
               <div className="border-t border-dashed border-gray-300 pt-4 flex flex-col items-center space-y-3 barcode-container">
                 <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">IMEI Barcodes</span>
                 <div className="flex flex-col items-center gap-3 w-full">
                   {imeiItems.map((item, idx) => (
-                    <Barcode key={idx} value={item.imei!} height={40} widthScale={1.2} className="p-2 bg-white border border-gray-200 rounded shadow-sm" />
+                    <div key={idx} className="flex flex-col items-center gap-1 w-full border border-black p-2 bg-white rounded">
+                      <span className="text-[10px] font-bold text-black">IMEI 1: {item.imei1 || item.imei}</span>
+                      <Barcode value={item.imei1 || item.imei!} height={40} widthScale={1.2} />
+                      {item.imei2 && (
+                        <>
+                          <span className="text-[10px] font-bold text-black mt-2">IMEI 2: {item.imei2}</span>
+                          <Barcode value={item.imei2} height={40} widthScale={1.2} />
+                        </>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -602,7 +611,12 @@ export default function PurchaseInvoiceReceipt({
                       {group.brandName && <div className="text-[10px] text-gray-600">Brand: {group.brandName}</div>}
                       {group.model && <div className="text-[10px] text-gray-600">Model: {group.model}</div>}
                       {group.storage && <div className="text-[10px] text-gray-600">Storage: {group.storage}</div>}
-                      {im.imei && <div className="text-[10px] text-gray-800 font-mono font-bold mt-1 bg-gray-50 p-1 rounded">IMEI: {im.imei}</div>}
+                      {im.imei && (
+                        <div className="text-[10px] text-gray-800 font-mono font-bold mt-1 bg-gray-50 p-1 rounded space-y-0.5">
+                          <div>IMEI 1: {im.imei1 || im.imei}</div>
+                          {im.imei2 && <div>IMEI 2: {im.imei2}</div>}
+                        </div>
+                      )}
                     </td>
                     <td className="py-1.5 align-top text-left">{im.color || getProductById(group.productId)?.color || findByImei(im.imei || '')?.color || '-'}</td>
                     <td className="py-1.5 align-top text-right">1</td>

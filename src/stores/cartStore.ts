@@ -39,12 +39,15 @@ export const useCartStore = create<CartState>((set, get) => ({
   addItem: (product: Product, imei?: string) => {
     const { items } = get();
     const itemImei = imei ?? product.imei;
-    const existing = items.find(i => i.productId === product.id && i.imei === itemImei);
 
     if (itemImei) {
+      const imeiRecord = useImeiStore.getState().findByImei(itemImei);
+      const imei1 = imeiRecord?.imei1 || itemImei;
+      const imei2 = imeiRecord?.imei2 || '';
+      
+      const existing = items.find(i => i.productId === product.id && (i.imei === itemImei || i.imei1 === imei1));
       if (existing) return;
       
-      const imeiRecord = useImeiStore.getState().findByImei(itemImei);
       const color = imeiRecord?.color;
       // derive brand name and model when possible
       const brand = useProductStore.getState().getBrandById(product.brandId);
@@ -68,6 +71,8 @@ export const useCartStore = create<CartState>((set, get) => ({
         total: product.salePrice,
         maxStock: 1,
         imei: itemImei,
+        imei1,
+        imei2,
         color,
       };
       set({ items: [...items, newItem] });

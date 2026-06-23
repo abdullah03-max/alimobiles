@@ -98,11 +98,19 @@ export default function Pos() {
     }
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
+      const matchingImeis = useImeiStore.getState().imeis.filter(i => 
+        (i.imei1 && i.imei1.toLowerCase().includes(q)) || 
+        (i.imei2 && i.imei2.toLowerCase().includes(q)) || 
+        (i.imei && i.imei.toLowerCase().includes(q))
+      );
+      const matchingProductIds = new Set(matchingImeis.map(i => i.productId));
+
       result = result.filter(p =>
         p.name.toLowerCase().includes(q) ||
         p.sku.toLowerCase().includes(q) ||
         p.barcode.includes(q) ||
-        (p.imei && p.imei.includes(q))
+        (p.imei && p.imei.includes(q)) ||
+        matchingProductIds.has(p.id)
       );
     }
     return result;
@@ -227,6 +235,8 @@ export default function Pos() {
             unitPrice: i.unitPrice,
             total: i.total,
             imei: i.imei,
+            imei1: i.imei1,
+            imei2: i.imei2,
           })),
           subtotal: subtotal(),
           discount: discountAmount(),
@@ -461,9 +471,10 @@ export default function Pos() {
                         {item.storage && <span className="ml-2">· {item.storage}</span>}
                       </div>
                       {item.imei && (
-                        <p className="text-xs text-orange-600 font-mono mt-0.5">
-                          IMEI: {item.imei} {item.color ? `(${item.color})` : ''}
-                        </p>
+                        <div className="text-[10px] text-orange-600 font-mono mt-0.5 space-y-0.5">
+                          <p>IMEI 1: {item.imei1 || item.imei} {item.color ? `(${item.color})` : ''}</p>
+                          {item.imei2 && <p>IMEI 2: {item.imei2}</p>}
+                        </div>
                       )}
                       <p className="text-xs text-gray-500 mt-0.5">{formatCurrency(item.unitPrice)} each</p>
                     </div>

@@ -8,7 +8,7 @@ const STORAGE_KEY = 'pos_product_imeis';
 interface ImeiState {
   imeis: ProductIMEI[];
   loadData: () => void;
-  addImei: (productId: string, imei: string, color?: string, ram?: string, storage?: string) => Promise<ProductIMEI | null>;
+  addImei: (productId: string, imei1: string, imei2: string, color?: string, ram?: string, storage?: string) => Promise<ProductIMEI | null>;
   removeImei: (id: string) => Promise<void>;
   findByImei: (imei: string) => ProductIMEI | undefined;
   isImeiUnique: (imei: string) => boolean;
@@ -25,7 +25,14 @@ function readLocalStorage(): ProductIMEI[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as ProductIMEI[]) : [];
+    const parsed = raw ? (JSON.parse(raw) as any[]) : [];
+    // Migrate old single imei records to have imei1 and imei2
+    return parsed.map(item => ({
+      ...item,
+      imei1: item.imei1 || item.imei || '',
+      imei2: item.imei2 || '',
+      imei: item.imei || item.imei1 || '',
+    }));
   } catch {
     return [];
   }
@@ -48,15 +55,18 @@ export const useImeiStore = create<ImeiState>((set, get) => ({
     set({ imeis });
   },
 
-  addImei: async (productId, imei, color, ram, storage) => {
-    const normalized = imei.trim();
-    if (!normalized) return null;
-    if (!get().isImeiUnique(normalized)) return null;
+  addImei: async (productId, imei1, imei2, color, ram, storage) => {
+    const normalized1 = imei1.trim();
+    const normalized2 = imei2.trim();
+    if (!normalized1 || !normalized2) return null;
+    if (!get().isImeiUnique(normalized1) || !get().isImeiUnique(normalized2)) return null;
 
     const newImei: ProductIMEI = {
       id: generateId(),
       productId,
-      imei: normalized,
+      imei: normalized1,
+      imei1: normalized1,
+      imei2: normalized2,
       status: 'available',
       color,
       ram,
@@ -89,13 +99,22 @@ export const useImeiStore = create<ImeiState>((set, get) => ({
   },
 
   findByImei: (imei) => {
-    const normalized = imei.trim();
-    return get().imeis.find(i => i.imei === normalized);
+    const normalized = imei.trim().toLowerCase();
+    return get().imeis.find(i => 
+      (i.imei1 && i.imei1.toLowerCase() === normalized) ||
+      (i.imei2 && i.imei2.toLowerCase() === normalized) ||
+      (i.imei && i.imei.toLowerCase() === normalized)
+    );
   },
 
   isImeiUnique: (imei) => {
-    const normalized = imei.trim();
-    return !get().imeis.some(i => i.imei === normalized);
+    const normalized = imei.trim().toLowerCase();
+    if (!normalized) return true;
+    return !get().imeis.some(i => 
+      (i.imei1 && i.imei1.toLowerCase() === normalized) ||
+      (i.imei2 && i.imei2.toLowerCase() === normalized) ||
+      (i.imei && i.imei.toLowerCase() === normalized)
+    );
   },
 
   getImeisByProduct: (productId) => get().imeis.filter(i => i.productId === productId),
@@ -105,9 +124,13 @@ export const useImeiStore = create<ImeiState>((set, get) => ({
   countAvailable: (productId) => get().imeis.filter(i => i.productId === productId && i.status === 'available').length,
 
   markImeiSold: async (imei) => {
-    const normalized = imei.trim();
+    const normalized = imei.trim().toLowerCase();
     const imeis = get().imeis;
-    const index = imeis.findIndex(i => i.imei === normalized);
+    const index = imeis.findIndex(i => 
+      (i.imei1 && i.imei1.toLowerCase() === normalized) ||
+      (i.imei2 && i.imei2.toLowerCase() === normalized) ||
+      (i.imei && i.imei.toLowerCase() === normalized)
+    );
     if (index === -1) return false;
     const existing = imeis[index];
     if (existing.status !== 'available') return false;
@@ -128,9 +151,13 @@ export const useImeiStore = create<ImeiState>((set, get) => ({
   },
 
   markImeiAvailable: async (imei) => {
-    const normalized = imei.trim();
+    const normalized = imei.trim().toLowerCase();
     const imeis = get().imeis;
-    const index = imeis.findIndex(i => i.imei === normalized);
+    const index = imeis.findIndex(i => 
+      (i.imei1 && i.imei1.toLowerCase() === normalized) ||
+      (i.imei2 && i.imei2.toLowerCase() === normalized) ||
+      (i.imei && i.imei.toLowerCase() === normalized)
+    );
     if (index === -1) return false;
     const existing = imeis[index];
     if (existing.status !== 'sold') return false;

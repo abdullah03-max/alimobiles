@@ -473,14 +473,23 @@ export default function InvoiceReceipt({
 
         {/* IMEI Barcode Section (Moved to the very end) */}
         {(() => {
-          const imeiItems = sale.items.filter(item => item.imei && item.imei.trim() !== '');
+          const imeiItems = sale.items.filter(item => (item.imei1 && item.imei1.trim() !== '') || (item.imei && item.imei.trim() !== ''));
           if (imeiItems.length > 0) {
             return (
               <div className="border-t border-dashed border-gray-300 pt-4 flex flex-col items-center space-y-3 barcode-container">
                 <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">IMEI Barcodes</span>
                 <div className="flex flex-col items-center gap-3 w-full">
                   {imeiItems.map((item, idx) => (
-                    <Barcode key={idx} value={item.imei!} height={40} widthScale={1.2} className="p-2 bg-white border border-gray-200 rounded shadow-sm" />
+                    <div key={idx} className="flex flex-col items-center gap-1 w-full border border-black p-2 bg-white rounded">
+                      <span className="text-[10px] font-bold text-black">IMEI 1: {item.imei1 || item.imei}</span>
+                      <Barcode value={item.imei1 || item.imei!} height={40} widthScale={1.2} />
+                      {item.imei2 && (
+                        <>
+                          <span className="text-[10px] font-bold text-black mt-2">IMEI 2: {item.imei2}</span>
+                          <Barcode value={item.imei2} height={40} widthScale={1.2} />
+                        </>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -583,7 +592,12 @@ export default function InvoiceReceipt({
                 <td className="py-1.5 align-top">{index + 1}</td>
                 <td className="py-1.5 align-top break-words">
                   <div className="font-semibold text-gray-900">{item.productName}</div>
-                  {item.imei && <div className="text-[10px] text-gray-500 font-mono">IMEI: {item.imei}</div>}
+                  {item.imei && (
+                    <div className="text-[10px] text-gray-500 font-mono space-y-0.5 mt-0.5">
+                      <div>IMEI 1: {item.imei1 || item.imei}</div>
+                      {item.imei2 && <div>IMEI 2: {item.imei2}</div>}
+                    </div>
+                  )}
                 </td>
                 <td className="py-1.5 align-top text-right">{item.quantity}</td>
                 <td className="py-1.5 align-top text-right">{formatCurrency(item.unitPrice)}</td>

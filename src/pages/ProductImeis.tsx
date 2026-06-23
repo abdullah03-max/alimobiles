@@ -19,14 +19,16 @@ export default function ProductImeis() {
   const { imeis, loadData: loadImeis, addImei, removeImei, getImeisByProduct, getAvailableByProduct } = useImeiStore();
   const toast = useToast();
 
-  const [imeiInput, setImeiInput] = useState('');
+  const [imei1Input, setImei1Input] = useState('');
+  const [imei2Input, setImei2Input] = useState('');
   const [selectedColor, setSelectedColor] = useState('');
   const [selectedVariantIdx, setSelectedVariantIdx] = useState(0);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [expandedColors, setExpandedColors] = useState<Record<string, boolean>>({});
   
-  const inputRef = useRef<HTMLInputElement>(null);
+  const imei1Ref = useRef<HTMLInputElement>(null);
+  const imei2Ref = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadProducts();
@@ -35,7 +37,7 @@ export default function ProductImeis() {
 
   // Focus the scanner input on mount
   useEffect(() => {
-    inputRef.current?.focus();
+    imei1Ref.current?.focus();
   }, []);
 
   const product = products.find((p) => p.id === productId);
@@ -106,17 +108,19 @@ export default function ProductImeis() {
     if (e) e.preventDefault();
     if (!productId) return;
     
-    const trimmed = imeiInput.trim();
+    const trimmed1 = imei1Input.trim();
+    const trimmed2 = imei2Input.trim();
     
-    // Clear input field immediately for hands-free scanning
-    setImeiInput('');
+    // Clear input fields immediately for hands-free scanning
+    setImei1Input('');
+    setImei2Input('');
     setError('');
     
     // Maintain input focus immediately
-    inputRef.current?.focus();
+    imei1Ref.current?.focus();
 
-    if (!trimmed) {
-      setError('Enter a valid IMEI');
+    if (!trimmed1 || !trimmed2) {
+      setError('Enter both IMEI 1 and IMEI 2');
       return;
     }
 
@@ -133,10 +137,24 @@ export default function ProductImeis() {
       return;
     }
 
+    // Uniqueness checks
+    const imeiStore = useImeiStore.getState();
+    if (!imeiStore.isImeiUnique(trimmed1)) {
+      setError(`IMEI 1 "${trimmed1}" already exists`);
+      toast.error('Duplicate IMEI 1', `IMEI "${trimmed1}" already exists`);
+      return;
+    }
+    if (!imeiStore.isImeiUnique(trimmed2)) {
+      setError(`IMEI 2 "${trimmed2}" already exists`);
+      toast.error('Duplicate IMEI 2', `IMEI "${trimmed2}" already exists`);
+      return;
+    }
+
     setLoading(true);
     const added = await addImei(
       productId, 
-      trimmed, 
+      trimmed1,
+      trimmed2,
       selectedColor || undefined, 
       variant?.ram, 
       variant?.storage
@@ -144,17 +162,16 @@ export default function ProductImeis() {
     setLoading(false);
 
     if (!added) {
-      setError(`IMEI "${trimmed}" already exists or could not be added`);
-      toast.error('Duplicate IMEI', `IMEI "${trimmed}" already exists in the system`);
+      setError('Failed to add IMEIs');
     } else {
-      toast.success('IMEI added', trimmed);
+      toast.success('Product IMEI saved successfully');
       // Expand the color section when a new IMEI is added
       setExpandedColors(prev => ({ ...prev, [selectedColor]: true }));
     }
     
     // Maintain input focus after loading state finishes
     setTimeout(() => {
-      inputRef.current?.focus();
+      imei1Ref.current?.focus();
     }, 50);
   };
 
@@ -162,7 +179,7 @@ export default function ProductImeis() {
     if (!imeiId) return;
     await removeImei(imeiId);
     toast.success('IMEI removed');
-    inputRef.current?.focus();
+    imei1Ref.current?.focus();
   };
 
   const toggleColorExpand = (color: string) => {
@@ -306,20 +323,41 @@ export default function ProductImeis() {
               )}
               
               <div>
-                <Label htmlFor="imei-input" className="text-xs font-semibold">IMEI Number</Label>
+                <Label htmlFor="imei1-input" className="text-xs font-semibold">IMEI 1 Number *</Label>
                 <Input
-                  id="imei-input"
-                  ref={inputRef}
-                  value={imeiInput}
-                  onChange={(e) => setImeiInput(e.target.value)}
-                  placeholder="Scan or type IMEI"
+                  id="imei1-input"
+                  ref={imei1Ref}
+                  value={imei1Input}
+                  onChange={(e) => setImei1Input(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (imei1Input.trim()) {
+                        imei2Ref.current?.focus();
+                      }
+                    }
+                  }}
+                  placeholder="Scan or type IMEI 1"
+                  className="flex-1 font-mono text-xs mt-2"
+                  autoComplete="off"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="imei2-input" className="text-xs font-semibold">IMEI 2 Number *</Label>
+                <Input
+                  id="imei2-input"
+                  ref={imei2Ref}
+                  value={imei2Input}
+                  onChange={(e) => setImei2Input(e.target.value)}
+                  placeholder="Scan or type IMEI 2"
                   className="flex-1 font-mono text-xs mt-2"
                   autoComplete="off"
                 />
               </div>
 
               <Button type="submit" disabled={loading} className="w-full bg-orange-500 hover:bg-orange-600">
-                <Plus className="w-4 h-4 mr-2" /> Add IMEI
+                <Plus className="w-4 h-4 mr-2" /> Add Device (Dual IMEI)
               </Button>
             </form>
             {error && <p className="mt-2 text-xs text-red-500 font-medium">{error}</p>}
@@ -413,8 +451,15 @@ export default function ProductImeis() {
                             {colorAvailable.map((imei) => (
                               <div key={imei.id} className="bg-white rounded-lg p-3 border border-green-100 flex items-center justify-between hover:shadow-sm transition-shadow">
                                 <div className="flex-1">
-                                  <div className="flex items-center gap-2">
-                                    <p className="font-mono font-semibold text-gray-900 text-sm select-all">{imei.imei}</p>
+                                  <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                    <p className="font-mono font-bold text-gray-900 text-sm select-all">
+                                      IMEI 1: {imei.imei1 || imei.imei}
+                                    </p>
+                                    {imei.imei2 && (
+                                      <p className="font-mono font-bold text-gray-900 text-sm select-all sm:before:content-['|'] sm:before:mr-2">
+                                        IMEI 2: {imei.imei2}
+                                      </p>
+                                    )}
                                     {imei.ram && imei.storage && (
                                       <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-150">
                                         {imei.ram} / {imei.storage}
@@ -451,8 +496,15 @@ export default function ProductImeis() {
                             {colorSold.map((imei) => (
                               <div key={imei.id} className="bg-white rounded-lg p-3 border border-red-100 flex items-center justify-between opacity-75">
                                 <div className="flex-1">
-                                  <div className="flex items-center gap-2">
-                                    <p className="font-mono font-semibold text-gray-600 text-sm line-through select-all">{imei.imei}</p>
+                                  <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                    <p className="font-mono font-bold text-gray-600 text-sm line-through select-all">
+                                      IMEI 1: {imei.imei1 || imei.imei}
+                                    </p>
+                                    {imei.imei2 && (
+                                      <p className="font-mono font-bold text-gray-600 text-sm line-through select-all sm:before:content-['|'] sm:before:mr-2">
+                                        IMEI 2: {imei.imei2}
+                                      </p>
+                                    )}
                                     {imei.ram && imei.storage && (
                                       <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-650 border">
                                         {imei.ram} / {imei.storage}
