@@ -205,7 +205,7 @@ export const useSaleStore = create<SaleState>((set, get) => ({
       try {
         const response = await supabase
           .from('sale_items')
-          .insert(itemsToInsert, { returning: 'minimal' });
+          .insert(itemsToInsert);
         iErr = response.error;
       } catch (error) {
         iErr = error;
@@ -240,7 +240,7 @@ export const useSaleStore = create<SaleState>((set, get) => ({
           });
           const fallbackResponse = await supabase
             .from('sale_items')
-            .insert(fallbackItems, { returning: 'minimal' });
+            .insert(fallbackItems);
           if (fallbackResponse.error) throw fallbackResponse.error;
         } else {
           throw iErr;
