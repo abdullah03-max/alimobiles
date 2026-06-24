@@ -54,27 +54,27 @@ export function usePrint() {
             print-color-adjust: exact;
           }
           
-          /* Prevent price wrap: keep Rate, Disc. %, Net Rate in one line */
-          .items-table td:nth-child(1), .items-table td:nth-child(3), .items-table td:nth-child(4), .items-table td:nth-child(5), .items-table td:nth-child(6) {
+          /* Prevent wrap for numeric columns */
+          .items-table td:nth-child(1), .items-table td:nth-child(5), .items-table td:nth-child(6) {
             white-space: nowrap !important;
             word-break: keep-all !important;
             overflow-wrap: normal !important;
           }
           
-          /* Wrap only the item description column */
-          .items-table td:nth-child(2) {
+          /* Wrap description, color, and storage columns */
+          .items-table td:nth-child(2), .items-table td:nth-child(3), .items-table td:nth-child(4) {
             white-space: normal !important;
             word-break: break-word !important;
             overflow-wrap: break-word !important;
           }
           
-          /* Table column widths for thermal printing */
-          .items-table th:nth-child(1), .items-table td:nth-child(1) { width: 9% !important; text-align: center; } /* Sr# */
-          .items-table th:nth-child(2), .items-table td:nth-child(2) { width: 39% !important; text-align: left; } /* Description */
-          .items-table th:nth-child(3), .items-table td:nth-child(3) { width: 8% !important; text-align: center; } /* Qty */
-          .items-table th:nth-child(4), .items-table td:nth-child(4) { width: 16% !important; text-align: right; } /* Rate */
-          .items-table th:nth-child(5), .items-table td:nth-child(5) { width: 12% !important; text-align: right; } /* Disc. % */
-          .items-table th:nth-child(6), .items-table td:nth-child(6) { width: 16% !important; text-align: right; } /* Net Rate */
+          /* Table column widths for thermal printing (6 columns) */
+          .items-table th:nth-child(1), .items-table td:nth-child(1) { width: 6% !important; text-align: center; } /* Sr# */
+          .items-table th:nth-child(2), .items-table td:nth-child(2) { width: 38% !important; text-align: left; } /* Description */
+          .items-table th:nth-child(3), .items-table td:nth-child(3) { width: 14% !important; text-align: left; } /* Color */
+          .items-table th:nth-child(4), .items-table td:nth-child(4) { width: 18% !important; text-align: left; } /* Storage */
+          .items-table th:nth-child(5), .items-table td:nth-child(5) { width: 8% !important; text-align: center; } /* Qty */
+          .items-table th:nth-child(6), .items-table td:nth-child(6) { width: 16% !important; text-align: right; } /* Price */
 
           .grid { display: grid !important; }
           .grid-cols-2 { display: grid !important; grid-template-cols: 55% 45% !important; }

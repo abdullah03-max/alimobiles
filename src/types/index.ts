@@ -115,6 +115,10 @@ type SaleItem = {
   imei?: string;
   imei1?: string;
   imei2?: string;
+  color?: string;
+  ram?: string;
+  storage?: string;
+  ptaStatus?: string;
 };
 
 // Sale
@@ -311,6 +315,8 @@ type CartItem = {
   imei1?: string;
   imei2?: string;
   color?: string;
+  ram?: string;
+  ptaStatus?: string;
   maxStock: number;
 };
 

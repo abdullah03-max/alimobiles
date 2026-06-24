@@ -66,7 +66,23 @@ export const useSaleStore = create<SaleState>((set, get) => ({
       const saleItemsBySaleId = (saleItemsRes.data || []).reduce((acc: Record<string, any[]>, item) => {
         const saleId = item.sale_id;
         if (!acc[saleId]) acc[saleId] = [];
-        acc[saleId].push(toCamelCase(item));
+        const camelItem = toCamelCase(item);
+        if (camelItem.productName && camelItem.productName.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(camelItem.productName);
+            camelItem.productName = parsed.name || camelItem.productName;
+            camelItem.imei = parsed.imei || camelItem.imei || null;
+            camelItem.imei1 = parsed.imei1 || camelItem.imei1 || null;
+            camelItem.imei2 = parsed.imei2 || camelItem.imei2 || null;
+            camelItem.color = parsed.color || null;
+            camelItem.storage = parsed.storage || null;
+            camelItem.ram = parsed.ram || null;
+            camelItem.ptaStatus = parsed.ptaStatus || null;
+          } catch (e) {
+            // ignore
+          }
+        }
+        acc[saleId].push(camelItem);
         return acc;
       }, {});
 
@@ -182,14 +198,41 @@ export const useSaleStore = create<SaleState>((set, get) => ({
       const saleId = insertedSale.id;
 
       // Insert sale items, preserving both IMEI values when available
+      const normalizeProductName = (rawName: string | undefined) => {
+        if (!rawName || typeof rawName !== 'string') return '';
+        const trimmed = rawName.trim();
+        if (trimmed.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            return parsed.name || rawName;
+          } catch {
+            return rawName;
+          }
+        }
+        return rawName;
+      };
+
       const itemsToInsert = sale.items.map(item => {
+        const actualProductName = normalizeProductName(item.productName);
         const hasSecondImei = Boolean(item.imei2?.trim());
         const imeiValue = hasSecondImei ? (item.imei1 || item.imei || null) : (item.imei || item.imei1 || null);
+        const shouldSerialize = Boolean(item.imei || item.imei1 || item.imei2 || item.color || item.ram || item.storage || item.ptaStatus);
 
         const payload: any = {
           sale_id: saleId,
           product_id: item.productId,
-          product_name: item.productName,
+          product_name: shouldSerialize
+            ? JSON.stringify({
+                name: actualProductName,
+                imei: item.imei || null,
+                imei1: item.imei1 || null,
+                imei2: item.imei2 || null,
+                color: item.color || null,
+                ram: item.ram || null,
+                storage: item.storage || null,
+                ptaStatus: item.ptaStatus || null,
+              })
+            : actualProductName,
           quantity: item.quantity,
           unit_price: item.unitPrice,
           total: item.total,
@@ -262,7 +305,10 @@ export const useSaleStore = create<SaleState>((set, get) => ({
       }
 
       const finalSale = toCamelCase(insertedSale) as Sale;
-      finalSale.items = sale.items;
+      finalSale.items = sale.items.map(item => ({
+        ...item,
+        productName: normalizeProductName(item.productName),
+      }));
 
       const sales = [finalSale, ...get().sales];
       set({ sales });

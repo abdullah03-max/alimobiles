@@ -43,6 +43,25 @@ export const useCartStore = create<CartState>((set, get) => ({
       ? items.find(i => i.productId === product.id && i.imei === itemImei)
       : items.find(i => i.productId === product.id && !i.imei);
 
+    let productColors: string[] = [];
+    let productStorages: string[] = [];
+    let productRams: string[] = [];
+    let ptaStatus = '';
+    const hasImei = Boolean(itemImei || product.imei);
+
+    if (product?.description?.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(product.description);
+        productColors = parsed.colors || [];
+        productStorages = (parsed.variants || []).map((v: any) => v.storage).filter(Boolean);
+        productRams = (parsed.variants || []).map((v: any) => v.ram).filter(Boolean);
+        ptaStatus = parsed.ptaStatus || '';
+      } catch (e) {}
+    }
+    if (!ptaStatus && hasImei) {
+      ptaStatus = 'non-approved';
+    }
+
     if (itemImei) {
       const imeiRecord = useImeiStore.getState().findByImei(itemImei);
       const imei1 = imeiRecord?.imei1 || itemImei;
@@ -50,7 +69,10 @@ export const useCartStore = create<CartState>((set, get) => ({
       
       if (existing) return;
       
-      const color = imeiRecord?.color;
+      const color = imeiRecord?.color || productColors[0] || product?.color || '';
+      const ram = imeiRecord?.ram || productRams[0] || product?.ram || '';
+      const storage = imeiRecord?.storage || productStorages[0] || product?.storage || '';
+
       // derive brand name and model when possible
       const brand = useProductStore.getState().getBrandById(product.brandId);
       const category = useProductStore.getState().getCategoryById(product.categoryId);
@@ -67,7 +89,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         productName: product.name,
         brandName: brand?.name,
         model,
-        storage: product.storage,
+        storage,
         quantity: 1,
         unitPrice: product.salePrice,
         total: product.salePrice,
@@ -76,6 +98,8 @@ export const useCartStore = create<CartState>((set, get) => ({
         imei1,
         imei2,
         color,
+        ram,
+        ptaStatus,
       };
       set({ items: [...items, newItem] });
       return;
@@ -101,16 +125,23 @@ export const useCartStore = create<CartState>((set, get) => ({
         }
       }
 
+      const color = productColors[0] || product?.color || '';
+      const ram = productRams[0] || product?.ram || '';
+      const storage = productStorages[0] || product?.storage || '';
+
       const newItem: CartItem = {
         productId: product.id,
         productName: product.name,
         brandName: brand?.name,
         model,
-        storage: product.storage,
+        storage,
         quantity: 1,
         unitPrice: product.salePrice,
         total: product.salePrice,
         maxStock: product.stockQuantity,
+        color,
+        ram,
+        ptaStatus,
       };
       set({ items: [...items, newItem] });
     }
