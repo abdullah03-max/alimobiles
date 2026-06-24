@@ -16,6 +16,7 @@ export default function DuePayments() {
   const [collectModal, setCollectModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<{ id: string; number: string; balance: number; name: string } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => { loadSales(); }, []);
 
@@ -28,18 +29,37 @@ export default function DuePayments() {
   };
 
   const customerDues = useMemo(() => {
-    return sales.filter(s => s.status === 'pending' || s.status === 'partial').map(s => ({
-      id: s.id,
-      invoice: s.invoiceNumber,
-      customer: s.customerName,
-      date: s.createdAt,
-      total: s.grandTotal,
-      paid: s.paidAmount,
-      balance: s.grandTotal - s.paidAmount,
-      status: s.status,
-      isOverdue: isInvoiceOverdue(s.createdAt),
-    }));
-  }, [sales]);
+    const q = searchQuery.trim().toLowerCase();
+    return sales
+      .filter(s => s.status === 'pending' || s.status === 'partial')
+      .filter(s => {
+        if (!q) return true;
+        // match customer name
+        if (s.customerName && s.customerName.toLowerCase().includes(q)) return true;
+        // match invoice number
+        if (s.invoiceNumber && s.invoiceNumber.toLowerCase().includes(q)) return true;
+        // match any IMEI in sale items (imei, imei1, imei2)
+        if (Array.isArray(s.items)) {
+          for (const it of s.items) {
+            if (it.imei && it.imei.toLowerCase().includes(q)) return true;
+            if (it.imei1 && it.imei1.toLowerCase().includes(q)) return true;
+            if (it.imei2 && it.imei2.toLowerCase().includes(q)) return true;
+          }
+        }
+        return false;
+      })
+      .map(s => ({
+        id: s.id,
+        invoice: s.invoiceNumber,
+        customer: s.customerName,
+        date: s.createdAt,
+        total: s.grandTotal,
+        paid: s.paidAmount,
+        balance: s.grandTotal - s.paidAmount,
+        status: s.status,
+        isOverdue: isInvoiceOverdue(s.createdAt),
+      }));
+  }, [sales, searchQuery]);
 
   const openCollect = (inv: typeof customerDues[0]) => {
     setSelectedInvoice({ id: inv.id, number: inv.invoice, balance: inv.balance, name: inv.customer });
@@ -80,10 +100,15 @@ export default function DuePayments() {
     <div>
       <PageHeader title="Due Payments" subtitle="Track outstanding payments" />
 
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      <div className="mb-4">
+        <div className="mb-3">
+          <Input placeholder="Search by customer, invoice or IMEI" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+        </div>
+        <div className="grid grid-cols-3 gap-3">
         <div className="bg-white rounded-lg border border-gray-200 p-3"><p className="text-lg font-bold">{formatCurrency(customerDues.reduce((s, d) => s + d.balance, 0))}</p><p className="text-xs text-gray-500">Total Due</p></div>
         <div className="bg-white rounded-lg border border-gray-200 p-3"><p className="text-lg font-bold text-red-600">{formatCurrency(customerDues.filter(d => d.isOverdue && d.balance > 0).reduce((s, d) => s + d.balance, 0))}</p><p className="text-xs text-gray-500">Overdue (30+ days)</p></div>
         <div className="bg-white rounded-lg border border-gray-200 p-3"><p className="text-lg font-bold">{customerDues.length}</p><p className="text-xs text-gray-500">Customers</p></div>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">

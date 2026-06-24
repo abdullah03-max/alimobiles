@@ -167,22 +167,25 @@ export default function PurchaseInvoiceReceipt({
     const addressLines = addressRaw.flatMap(l => l.trim() === '' ? [''] : wrapText(l, printWidth));
     const footerLines = footerLinesRaw.flatMap(l => l.trim() === '' ? [''] : wrapText(l, printWidth));
 
-    // Header Shop Name & Address
-    if (shopNameText) {
-      const dividerLength = printWidth - shopNameText.length - 1;
-      if (dividerLength > 0) {
-        lines.push(`${shopNameText} ${'='.repeat(dividerLength)}`);
-      } else {
-        lines.push(centerText(shopNameText, printWidth));
+    // Header: Show store name & address only if logo is NOT enabled
+    // (logo preference takes precedence)
+    if (!receiptSettings.showLogo) {
+      if (shopNameText) {
+        const dividerLength = printWidth - shopNameText.length - 1;
+        if (dividerLength > 0) {
+          lines.push(`${shopNameText} ${'='.repeat(dividerLength)}`);
+        } else {
+          lines.push(centerText(shopNameText, printWidth));
+        }
       }
-    }
-    addressLines.forEach(line => {
-      if (line.trim() !== '') {
-        lines.push(centerText(line, printWidth));
+      addressLines.forEach(line => {
+        if (line.trim() !== '') {
+          lines.push(centerText(line, printWidth));
+        }
+      });
+      if (shopSettings.phone) {
+        lines.push(centerText(`Phone: ${shopSettings.phone}`, printWidth));
       }
-    });
-    if (shopSettings.phone) {
-      lines.push(centerText(`Phone: ${shopSettings.phone}`, printWidth));
     }
     lines.push('-'.repeat(printWidth));
 
@@ -311,33 +314,34 @@ export default function PurchaseInvoiceReceipt({
           className
         )}
       >
-        {/* Header Logo */}
-        {receiptSettings.showLogo && (
+        {/* Header: Logo OR Store Name (mutually exclusive) */}
+        {receiptSettings.showLogo ? (
           <div className="mx-auto mb-2 flex items-center justify-center w-20 h-20"> 
             <img src={logoImage} alt="Logo" className="w-full h-full object-contain" />
           </div>
+        ) : (
+          <div className="text-center space-y-1">
+            <h2 className="font-extrabold text-[#1e3a8a] text-2xl uppercase tracking-wider">{shopNameText}</h2>
+            <div className="text-xs font-semibold text-gray-700 leading-normal">
+              {receiptSettings.header ? (
+                receiptSettings.header.split('\n').map((line, idx) => (
+                  <p key={idx}>{line}</p>
+                ))
+              ) : (
+                <>
+                  <p>{companyAddress.join(', ')}</p>
+                  {shopSettings.phone && <p>Phone: [ {shopSettings.phone} ]</p>}
+                </>
+              )}
+            </div>
+          </div>
         )}
 
-        {/* Header */}
-        <div className="text-center space-y-1">
-          <h2 className="font-extrabold text-[#1e3a8a] text-2xl uppercase tracking-wider">{shopNameText}</h2>
-          <div className="text-xs font-semibold text-gray-700 leading-normal">
-            {receiptSettings.header ? (
-              receiptSettings.header.split('\n').map((line, idx) => (
-                <p key={idx}>{line}</p>
-              ))
-            ) : (
-              <>
-                <p>{companyAddress.join(', ')}</p>
-                {shopSettings.phone && <p>Phone: [ {shopSettings.phone} ]</p>}
-              </>
-            )}
-          </div>
-          <div className="pt-2">
-            <span className="text-lg font-bold border-b-2 border-black inline-block px-4 pb-0.5 uppercase tracking-wide">
-              Purchase Order
-            </span>
-          </div>
+        {/* Purchase Order Type Label */}
+        <div className="pt-2 text-center">
+          <span className="text-lg font-bold border-b-2 border-black inline-block px-4 pb-0.5 uppercase tracking-wide">
+            Purchase Order
+          </span>
         </div>
 
         {/* Supplier & Invoice Meta Box */}

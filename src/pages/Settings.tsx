@@ -73,6 +73,12 @@ export default function Settings() {
   const [isLoading, setIsLoading] = useState(true);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [confirmChecked, setConfirmChecked] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+  const [finalModalOpen, setFinalModalOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteSteps, setDeleteSteps] = useState<string[]>([]);
+  const [currentStep, setCurrentStep] = useState<number | null>(null);
 
   useEffect(() => {
     loadSettings().finally(() => setIsLoading(false));
@@ -190,15 +196,67 @@ export default function Settings() {
   };
 
   const handleResetDatabase = async () => {
-    setResetLoading(true);
+    // This function is deprecated in favor of the enhanced Delete All Data flow
+    setResetConfirmOpen(false);
+  };
+
+  // New: perform a full business-data deletion while preserving users and system settings
+  const handleDeleteAllData = async () => {
+    if (user?.role !== 'admin') {
+      toast.error('Only administrators can perform this action');
+      return;
+    }
+    if (!confirmChecked || confirmText.trim() !== 'DELETE ALL DATA') {
+      toast.error('Please confirm the action by checking the box and typing DELETE ALL DATA');
+      return;
+    }
+
+    setFinalModalOpen(false);
+    setDeleting(true);
+    setDeleteSteps([
+      'Deleting sale items',
+      'Deleting sales',
+      'Deleting return items',
+      'Deleting returns',
+      'Deleting purchase items',
+      'Deleting purchases',
+      'Deleting expenses',
+      'Deleting customers',
+      'Deleting suppliers',
+      'Deleting products',
+      'Deleting categories',
+      'Deleting brands',
+      'Deleting units',
+      'Clearing IMEI local storage',
+      'Reloading local state',
+    ]);
 
     try {
-      const tables = [
+      const steps = [...deleteSteps];
+      const setStep = (i: number | null) => { setCurrentStep(i); };
+
+      // Helper to delete a table safely (skip if table missing)
+      const safeDelete = async (table: string) => {
+        const i = steps.indexOf(`Deleting ${table.replace('_', ' ')}`);
+        setStep(i >= 0 ? i : null);
+        try {
+          const { error } = await supabase.from(table).delete().not('id', 'is', null);
+          if (error) {
+            // If table missing, PostgREST returns PGRST205; log and continue
+            console.warn(`delete ${table} error:`, error);
+          }
+        } catch (err) {
+          console.warn(`delete ${table} threw:`, err);
+        }
+      };
+
+      // Execute deletions in order (child tables first)
+      const orderedTables = [
         'sale_items',
-        'return_items',
-        'purchase_items',
         'sales',
+        'return_items',
         'returns',
+        'purchase_items',
         'purchases',
         'expenses',
         'customers',
@@ -207,27 +265,46 @@ export default function Settings() {
         'categories',
         'brands',
         'units',
-        'settings',
       ];
 
-      for (const table of tables) {
-        const { error } = await supabase.from(table).delete().not('id', 'is', null);
-        if (error) {
-          throw new Error(`Failed to clear ${table}: ${error.message}`);
+      for (let idx = 0; idx < orderedTables.length; idx++) {
+        const table = orderedTables[idx];
+        setDeleteSteps(prev => prev);
+        setCurrentStep(idx);
+        try {
+          const { error } = await supabase.from(table).delete().not('id', 'is', null);
+          if (error) console.warn(`Delete ${table} error:`, error);
+        } catch (err) {
+          console.warn(`Delete ${table} threw:`, err);
         }
       }
 
-      resetLocalSettings();
-      await loadSettings();
+      // Clear IMEIs stored in localStorage
+      setCurrentStep(orderedTables.length);
+      try {
+        window.localStorage.removeItem('pos_product_imeis');
+        // Also clear any other related keys
+        window.localStorage.removeItem('pos_settings');
+        window.localStorage.removeItem('pos_receipt_settings');
+        window.localStorage.removeItem('pos_tax_settings');
+        window.localStorage.removeItem('pos_payment_methods');
+      } catch (err) {
+        console.warn('Local storage clear failed:', err);
+      }
+
+      // Reload app state
+      setCurrentStep(orderedTables.length + 1);
       await Promise.all([loadProducts(), loadSales(), loadCustomers(), loadSuppliers(), loadExpenses()]);
 
-      toast.success('Database reset completed');
+      toast.success('All business data deleted — system reset to fresh account state');
     } catch (err) {
-      console.error('Reset failed:', err);
-      toast.error('Reset failed', err instanceof Error ? err.message : 'Unable to reset database');
+      console.error('Delete all data failed:', err);
+      toast.error('Failed to delete all data', err instanceof Error ? err.message : 'See console for details');
     } finally {
-      setResetLoading(false);
-      setResetConfirmOpen(false);
+      setDeleting(false);
+      setConfirmChecked(false);
+      setConfirmText('');
+      setCurrentStep(null);
     }
   };
 
@@ -359,10 +436,45 @@ export default function Settings() {
             <div className="p-4 max-w-lg space-y-4">
               <p className="text-sm text-red-600">Resetting the database will delete all sales, customers, products, suppliers, expenses, and settings. This action cannot be undone.</p>
               <div className="rounded-lg border border-red-100 bg-red-50 p-4">
-                <p className="text-sm font-medium text-red-700">Reset all database</p>
-                <p className="text-xs text-red-600 mt-1">Use only when you want to clear all application data.</p>
+                <p className="text-sm font-medium text-red-700">Delete All Business Data</p>
+                <p className="text-xs text-red-600 mt-1">This will permanently remove products, inventory, sales, purchases, customers, suppliers, expenses, categories, brands, IMEIs and related business records. User accounts and system configuration will be preserved.</p>
               </div>
-              <Button className="bg-red-500 hover:bg-red-600" onClick={() => setResetConfirmOpen(true)} disabled={resetLoading}>Reset All Database</Button>
+
+              {user?.role !== 'admin' ? (
+                <div className="p-3 border rounded bg-red-50 text-sm text-red-600">Only administrators can perform this action.</div>
+              ) : (
+                <div className="space-y-3">
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" checked={confirmChecked} onChange={e => setConfirmChecked(e.target.checked)} className="w-4 h-4" />
+                    <span className="text-sm text-gray-700">I understand this will permanently delete all business data</span>
+                  </label>
+
+                  <div>
+                    <Label>Type to confirm</Label>
+                    <Input placeholder='Type DELETE ALL DATA to confirm' value={confirmText} onChange={e => setConfirmText(e.target.value)} />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button className="bg-red-500 hover:bg-red-600" onClick={() => setFinalModalOpen(true)} disabled={!confirmChecked || confirmText.trim() !== 'DELETE ALL DATA' || deleting}>
+                      {deleting ? 'Deleting...' : 'Delete All Data'}
+                    </Button>
+                    <Button variant="outline" onClick={() => { setConfirmChecked(false); setConfirmText(''); }} disabled={deleting}>Cancel</Button>
+                  </div>
+
+                  {deleting && (
+                    <div className="mt-3 p-3 border rounded bg-gray-50 text-sm">
+                      <p className="font-medium">Deletion in progress...</p>
+                      <div className="mt-2">
+                        {deleteSteps.map((s, i) => (
+                          <div key={s} className={cn('text-xs py-0.5', currentStep === i ? 'text-orange-600 font-semibold' : 'text-gray-500')}>
+                            {i === currentStep ? '●' : '○'} {s}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -386,6 +498,13 @@ export default function Settings() {
         onConfirm={handleResetDatabase}
         itemName="Full database reset"
         message="Are you sure you want to reset the entire database? This will remove all records and reset settings."
+      />
+      <DeleteConfirmModal
+        open={finalModalOpen}
+        onClose={() => setFinalModalOpen(false)}
+        onConfirm={handleDeleteAllData}
+        itemName="DELETE ALL DATA"
+        message={"This will permanently delete ALL business data (products, sales, purchases, IMEIs, customers, suppliers, expenses, categories, brands). This action is irreversible. Type DELETE ALL DATA and confirm to proceed."}
       />
     </div>
   );

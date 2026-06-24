@@ -169,22 +169,25 @@ export default function InvoiceReceipt({
     const footerLines = footerLinesRaw.flatMap(l => l.trim() === '' ? [''] : wrapText(l, printWidth));
     const termsLines = termsLinesRaw.flatMap(l => l.trim() === '' ? [''] : wrapText(l, printWidth));
 
-    // Header Shop Name & Address
-    if (shopNameText) {
-      const dividerLength = printWidth - shopNameText.length - 1;
-      if (dividerLength > 0) {
-        lines.push(`${shopNameText} ${'='.repeat(dividerLength)}`);
-      } else {
-        lines.push(centerText(shopNameText, printWidth));
+    // Header: Show store name & address only if logo is NOT enabled
+    // (logo preference takes precedence)
+    if (!receiptSettings.showLogo) {
+      if (shopNameText) {
+        const dividerLength = printWidth - shopNameText.length - 1;
+        if (dividerLength > 0) {
+          lines.push(`${shopNameText} ${'='.repeat(dividerLength)}`);
+        } else {
+          lines.push(centerText(shopNameText, printWidth));
+        }
       }
-    }
-    addressLines.forEach(line => {
-      if (line.trim() !== '') {
-        lines.push(centerText(line, printWidth));
+      addressLines.forEach(line => {
+        if (line.trim() !== '') {
+          lines.push(centerText(line, printWidth));
+        }
+      });
+      if (shopSettings.phone) {
+        lines.push(centerText(`Phone: ${shopSettings.phone}`, printWidth));
       }
-    });
-    if (shopSettings.phone) {
-      lines.push(centerText(`Phone: ${shopSettings.phone}`, printWidth));
     }
     lines.push('-'.repeat(printWidth));
 
@@ -300,33 +303,34 @@ export default function InvoiceReceipt({
           className
         )}
       >
-        {/* Header Logo */}
-        {receiptSettings.showLogo && (
+        {/* Header: Logo OR Store Name (mutually exclusive) */}
+        {receiptSettings.showLogo ? (
           <div className="mx-auto mb-2 flex items-center justify-center w-20 h-20"> 
             <img src={logoImage} alt="Logo" className="w-full h-full object-contain" />
           </div>
+        ) : (
+          <div className="text-center space-y-1">
+            <h2 className="font-extrabold text-[#1e3a8a] text-2xl uppercase tracking-wider">{shopNameText}</h2>
+            <div className="text-xs font-semibold text-gray-700 leading-normal">
+              {receiptSettings.header ? (
+                receiptSettings.header.split('\n').map((line, idx) => (
+                  <p key={idx}>{line}</p>
+                ))
+              ) : (
+                <>
+                  <p>{companyAddress.join(', ')}</p>
+                  {shopSettings.phone && <p>Phone: [ {shopSettings.phone} ]</p>}
+                </>
+              )}
+            </div>
+          </div>
         )}
 
-        {/* Header */}
-        <div className="text-center space-y-1">
-          <h2 className="font-extrabold text-[#1e3a8a] text-2xl uppercase tracking-wider">{shopNameText}</h2>
-          <div className="text-xs font-semibold text-gray-700 leading-normal">
-            {receiptSettings.header ? (
-              receiptSettings.header.split('\n').map((line, idx) => (
-                <p key={idx}>{line}</p>
-              ))
-            ) : (
-              <>
-                <p>{companyAddress.join(', ')}</p>
-                {shopSettings.phone && <p>Phone: [ {shopSettings.phone} ]</p>}
-              </>
-            )}
-          </div>
-          <div className="pt-2">
-            <span className="text-lg font-bold border-b-2 border-black inline-block px-4 pb-0.5 uppercase tracking-wide">
-              Sale Invoice
-            </span>
-          </div>
+        {/* Invoice Type Label */}
+        <div className="pt-2 text-center">
+          <span className="text-lg font-bold border-b-2 border-black inline-block px-4 pb-0.5 uppercase tracking-wide">
+            Sale Invoice
+          </span>
         </div>
 
         {/* Customer & Invoice Meta Box */}
@@ -348,8 +352,8 @@ export default function InvoiceReceipt({
                 <span className="text-gray-900">{customerAddress || '___________________________'}</span>
               </td>
               <td className="p-2 text-left">
-                <span className="font-normal text-gray-500">Ref # : </span>
-                <span className="text-gray-900">________</span>
+                <span className="font-normal text-gray-500">Payment : </span>
+                <span className="text-gray-900 uppercase">{paymentLabel}</span>
               </td>
             </tr>
             <tr>
@@ -446,6 +450,16 @@ export default function InvoiceReceipt({
               <span className="font-normal text-gray-500">Received:</span>
               <span>{formatCurrency(sale.paidAmount)}</span>
             </div>
+            <div className="flex justify-between text-amber-600 font-semibold">
+              <span className="font-normal text-gray-500">Due:</span>
+              <span>{formatCurrency(Math.max(0, sale.grandTotal - sale.paidAmount))}</span>
+            </div>
+            {sale.changeDue > 0 && (
+              <div className="flex justify-between text-green-700 font-medium text-xs">
+                <span>Change:</span>
+                <span>{formatCurrency(sale.changeDue)}</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -473,24 +487,63 @@ export default function InvoiceReceipt({
 
         {/* IMEI Barcode Section (Moved to the very end) */}
         {(() => {
-          const imeiItems = sale.items.filter(item => (item.imei1 && item.imei1.trim() !== '') || (item.imei && item.imei.trim() !== ''));
+          // Helper function to extract IMEI 1 and IMEI 2
+          const extractImeis = (item: any) => {
+            let imei1 = null;
+            let imei2 = null;
+
+            // Check if IMEIs are stored separately
+            if (item.imei1) {
+              imei1 = item.imei1;
+            }
+            if (item.imei2) {
+              imei2 = item.imei2;
+            }
+
+            // If not separate, check if they're encoded together in imei field
+            if (!imei1 && item.imei && item.imei.includes('||')) {
+              const parts = item.imei.split('||');
+              imei1 = parts[0] || null;
+              imei2 = parts[1] || null;
+            } else if (!imei1 && item.imei) {
+              imei1 = item.imei;
+            }
+
+            return { imei1, imei2 };
+          };
+
+          const imeiItems = sale.items.filter(item => {
+            const { imei1 } = extractImeis(item);
+            return imei1 && imei1.trim() !== '';
+          });
+
           if (imeiItems.length > 0) {
             return (
-              <div className="border-t border-dashed border-gray-300 pt-4 flex flex-col items-center space-y-3 barcode-container">
+              <div className="border-t border-dashed border-gray-300 pt-4 flex flex-col items-center space-y-4 barcode-container">
                 <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">IMEI Barcodes</span>
-                <div className="flex flex-col items-center gap-3 w-full">
-                  {imeiItems.map((item, idx) => (
-                    <div key={idx} className="flex flex-col items-center gap-1 w-full border border-black p-2 bg-white rounded">
-                      <span className="text-[10px] font-bold text-black">IMEI 1: {item.imei1 || item.imei}</span>
-                      <Barcode value={item.imei1 || item.imei!} height={40} widthScale={1.2} />
-                      {item.imei2 && (
-                        <>
-                          <span className="text-[10px] font-bold text-black mt-2">IMEI 2: {item.imei2}</span>
-                          <Barcode value={item.imei2} height={40} widthScale={1.2} />
-                        </>
-                      )}
-                    </div>
-                  ))}
+                <div className="flex flex-col items-center gap-6 w-full">
+                  {imeiItems.map((item, idx) => {
+                    const { imei1, imei2 } = extractImeis(item);
+                    return (
+                      <div key={idx} className="w-full space-y-4">
+                        {/* IMEI 1 Barcode */}
+                        {imei1 && (
+                          <div className="flex flex-col items-center gap-2 border border-black p-3 bg-white rounded">
+                            <span className="text-[11px] font-bold text-black">IMEI 1: {imei1}</span>
+                            <Barcode value={imei1} height={45} widthScale={1.3} />
+                          </div>
+                        )}
+
+                        {/* IMEI 2 Barcode */}
+                        {imei2 && (
+                          <div className="flex flex-col items-center gap-2 border border-black p-3 bg-white rounded">
+                            <span className="text-[11px] font-bold text-black">IMEI 2: {imei2}</span>
+                            <Barcode value={imei2} height={45} widthScale={1.3} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -526,23 +579,22 @@ export default function InvoiceReceipt({
       className={cn('space-y-4 text-sm text-gray-800 p-4 bg-white rounded-lg shadow-sm border border-gray-100 mx-auto', className)}
     >
       <div className="text-center">
-        {receiptSettings.showLogo && (
-          <div className="mx-auto mb-2 flex items-center justify-center w-16 h-16"> 
-            <img src={logoImage} alt="Logo" className="w-full h-full object-contain" />
-          </div>
-        )}
-        <h2 className="font-bold text-gray-900 text-xl uppercase tracking-wide">{shopNameText}</h2>
-        <div className="text-xs text-gray-500 mt-1">
-          {companyAddress.map((line, index) => (
-            <p key={index}>{line}</p>
-          ))}
-        </div>
-        {shopPhoneText && <p className="text-xs text-gray-500 mt-1">{shopPhoneText}</p>}
-        {shopEmailText && <p className="text-xs text-gray-500">{shopEmailText}</p>}
-      </div>
-
-      <div className="text-center py-2 border-y border-gray-200">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em]">Sale Invoice</p>
+          {receiptSettings.showLogo ? (
+            <div className="mx-auto mb-2 flex items-center justify-center w-16 h-16"> 
+              <img src={logoImage} alt="Logo" className="w-full h-full object-contain" />
+            </div>
+          ) : (
+            <>
+              <h2 className="font-bold text-gray-900 text-xl uppercase tracking-wide">{shopNameText}</h2>
+              <div className="text-xs text-gray-500 mt-1">
+                {companyAddress.map((line, index) => (
+                  <p key={index}>{line}</p>
+                ))}
+              </div>
+              {shopPhoneText && <p className="text-xs text-gray-500 mt-1">{shopPhoneText}</p>}
+              {shopEmailText && <p className="text-xs text-gray-500">{shopEmailText}</p>}
+            </>
+          )}
       </div>
 
       <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
@@ -587,23 +639,44 @@ export default function InvoiceReceipt({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {sale.items.map((item, index) => (
-              <tr key={index} className="text-gray-700">
-                <td className="py-1.5 align-top">{index + 1}</td>
-                <td className="py-1.5 align-top break-words">
-                  <div className="font-semibold text-gray-900">{item.productName}</div>
-                  {item.imei && (
-                    <div className="text-[10px] text-gray-500 font-mono space-y-0.5 mt-0.5">
-                      <div>IMEI 1: {item.imei1 || item.imei}</div>
-                      {item.imei2 && <div>IMEI 2: {item.imei2}</div>}
-                    </div>
-                  )}
-                </td>
-                <td className="py-1.5 align-top text-right">{item.quantity}</td>
-                <td className="py-1.5 align-top text-right">{formatCurrency(item.unitPrice)}</td>
-                <td className="py-1.5 align-top text-right font-medium">{formatCurrency(item.total)}</td>
-              </tr>
-            ))}
+            {sale.items.map((item, index) => {
+              // Extract IMEI 1 and IMEI 2 from either separate fields or encoded format
+              let imei1 = null;
+              let imei2 = null;
+
+              if (item.imei1) {
+                imei1 = item.imei1;
+              }
+              if (item.imei2) {
+                imei2 = item.imei2;
+              }
+
+              if (!imei1 && item.imei && item.imei.includes('||')) {
+                const parts = item.imei.split('||');
+                imei1 = parts[0] || null;
+                imei2 = parts[1] || null;
+              } else if (!imei1 && item.imei) {
+                imei1 = item.imei;
+              }
+
+              return (
+                <tr key={index} className="text-gray-700">
+                  <td className="py-1.5 align-top">{index + 1}</td>
+                  <td className="py-1.5 align-top break-words">
+                    <div className="font-semibold text-gray-900">{item.productName}</div>
+                    {imei1 && (
+                      <div className="text-[10px] text-gray-500 font-mono space-y-0.5 mt-0.5">
+                        <div>IMEI 1: {imei1}</div>
+                        {imei2 && <div>IMEI 2: {imei2}</div>}
+                      </div>
+                    )}
+                  </td>
+                  <td className="py-1.5 align-top text-right">{item.quantity}</td>
+                  <td className="py-1.5 align-top text-right">{formatCurrency(item.unitPrice)}</td>
+                  <td className="py-1.5 align-top text-right font-medium">{formatCurrency(item.total)}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

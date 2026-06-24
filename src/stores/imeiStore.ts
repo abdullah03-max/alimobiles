@@ -100,11 +100,19 @@ export const useImeiStore = create<ImeiState>((set, get) => ({
 
   findByImei: (imei) => {
     const normalized = imei.trim().toLowerCase();
-    return get().imeis.find(i => 
+    const rec = get().imeis.find(i =>
       (i.imei1 && i.imei1.toLowerCase() === normalized) ||
       (i.imei2 && i.imei2.toLowerCase() === normalized) ||
       (i.imei && i.imei.toLowerCase() === normalized)
     );
+    if (!rec) return undefined;
+    // Return a shallow copy where `imei` contains the actual matched IMEI
+    const matched = (rec.imei1 && rec.imei1.toLowerCase() === normalized)
+      ? rec.imei1
+      : (rec.imei2 && rec.imei2.toLowerCase() === normalized)
+      ? rec.imei2
+      : (rec.imei || rec.imei1 || rec.imei2 || '');
+    return { ...rec, imei: matched } as ProductIMEI;
   },
 
   isImeiUnique: (imei) => {

@@ -35,8 +35,12 @@ export default function Sales() {
     const q = search.trim();
     if (!q) return;
 
-    // look for a sale that contains this IMEI in its items
-    const found = sales.find(s => s.items && s.items.some(it => it.imei && it.imei === q));
+    // look for a sale that contains this IMEI in its items (check imei, imei1, and imei2)
+    const found = sales.find(s => s.items && s.items.some(it => 
+      (it.imei && it.imei === q) || 
+      (it.imei1 && it.imei1 === q) || 
+      (it.imei2 && it.imei2 === q)
+    ));
     if (found) {
       setViewSale(found);
       setSearch('');

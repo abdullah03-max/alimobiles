@@ -228,31 +228,117 @@ export function usePrint() {
     `;
     }
 
-    printWindow.document.open();
-    printWindow.document.write(`<!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <title>Receipt</title>
-          <style>${style}</style>
-        </head>
-        <body>${clonedContent.outerHTML}</body>
-      </html>
-    `);
-    printWindow.document.close();
-
-    const printAndClose = () => {
-      printWindow.focus();
-      printWindow.print();
-      printWindow.close();
+    const toDataURL = async (url: string): Promise<string | null> => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        const blob = await res.blob();
+        return await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } catch (e) {
+        return null;
+      }
     };
 
-    if (printWindow.document.readyState === 'complete') {
-      printAndClose();
-    } else {
-      printWindow.onload = printAndClose;
-      setTimeout(printAndClose, 500);
-    }
+    const inlineImages = async (el: HTMLElement) => {
+      try {
+        const imgs = Array.from(el.querySelectorAll('img')) as HTMLImageElement[];
+        await Promise.all(imgs.map(async (img) => {
+          try {
+            const src = img.getAttribute('src') || img.src;
+            if (!src) return;
+            if (src.startsWith('data:')) return; // already inlined
+            // Attempt to convert to data URL
+            const dataUrl = await toDataURL(src);
+            if (dataUrl) img.setAttribute('src', dataUrl);
+            // Ensure the image reserves space in the print layout by setting a sensible max-width
+            try {
+              const probe = new Image();
+              await new Promise((resolve) => { probe.onload = probe.onerror = resolve; probe.src = dataUrl || src; });
+              // Apply a conservative max-width so header logos remain visible in print preview
+              img.style.maxWidth = img.style.maxWidth || '160px';
+              img.style.height = img.style.height || 'auto';
+              img.removeAttribute('width');
+              img.removeAttribute('height');
+            } catch (e) {
+              // ignore sizing errors
+            }
+          } catch (e) {
+            // ignore individual image failures
+          }
+        }));
+      } catch (e) {
+        // ignore
+      }
+    };
+
+    const printAndClose = (win: Window) => {
+      try {
+        win.focus();
+        // Some browsers block immediate print; wrapping in setTimeout improves reliability
+        setTimeout(() => {
+          try { win.print(); } catch (e) { /* ignore */ }
+          try { win.close(); } catch (e) { /* ignore */ }
+        }, 50);
+      } catch (e) {
+        try { win.close(); } catch (e) { /* ignore */ }
+      }
+    };
+
+    const waitForImages = (win: any, timeout = 3000) => new Promise<void>((resolve) => {
+      try {
+        const imgs = Array.from(win.document.images || []) as HTMLImageElement[];
+        if (imgs.length === 0) return resolve();
+        let remaining = imgs.length;
+        const onLoadOrError = () => {
+          remaining -= 1;
+          if (remaining <= 0) resolve();
+        };
+
+        imgs.forEach((img: HTMLImageElement) => {
+          if (img.complete && img.naturalWidth !== 0) {
+            onLoadOrError();
+          } else {
+            img.addEventListener('load', onLoadOrError);
+            img.addEventListener('error', onLoadOrError);
+          }
+        });
+
+        // Fallback: ensure we don't wait forever
+        setTimeout(() => resolve(), timeout);
+      } catch (e) {
+        resolve();
+      }
+    });
+
+    // Inline external images in the cloned content, then write to the print window.
+    (async () => {
+      try {
+        await inlineImages(clonedContent);
+      } catch (e) {
+        // ignore inline failures
+      }
+
+      printWindow.document.open();
+      printWindow.document.write(`<!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>Receipt</title>
+            <style>${style}</style>
+          </head>
+          <body>${clonedContent.outerHTML}</body>
+        </html>
+      `);
+      printWindow.document.close();
+
+      // Wait for images (logo) to load in the new window, then print.
+      waitForImages(printWindow, 5000).then(() => printAndClose(printWindow)).catch(() => printAndClose(printWindow));
+    })();
   };
 
   return { printReceipt };

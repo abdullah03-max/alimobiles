@@ -101,26 +101,59 @@ export const useSaleStore = create<SaleState>((set, get) => ({
       let sErr: any = null;
 
       const { invoicePrefix, startingNumber } = useSettingsStore.getState().receiptSettings;
-      
       const cleanPrefix = invoicePrefix ? invoicePrefix.replace(/-+$/, '') : '';
       let maxSuffix = startingNumber - 1;
       const prefixWithDash = cleanPrefix ? `${cleanPrefix}-` : '';
-      
-      get().sales.forEach(s => {
-        if (s.invoiceNumber && s.invoiceNumber.startsWith(prefixWithDash)) {
-          const suffixStr = s.invoiceNumber.substring(prefixWithDash.length);
-          if (/^\d+$/.test(suffixStr)) {
-            const num = parseInt(suffixStr, 10);
-            if (num > maxSuffix) {
-              maxSuffix = num;
-            }
-          }
-        }
-      });
-      
-      const nextNumber = maxSuffix + 1;
 
-      for (let attempt = 0; attempt < 2; attempt++) {
+      const extractInvoiceSuffix = (invoiceNumber: string) => {
+        const trimmed = invoiceNumber?.trim();
+        if (!trimmed) return undefined;
+
+        if (prefixWithDash) {
+          const escapedPrefix = prefixWithDash.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
+          const regex = new RegExp(`^${escapedPrefix}(\\d+)$`, 'i');
+          const match = trimmed.match(regex);
+          return match ? parseInt(match[1], 10) : undefined;
+        }
+
+        const match = trimmed.match(/^(\\d+)$/);
+        return match ? parseInt(match[1], 10) : undefined;
+      };
+
+      const updateMaxSuffixFromInvoice = (invoiceNumber: string) => {
+        const suffix = extractInvoiceSuffix(invoiceNumber);
+        if (typeof suffix === 'number' && suffix > maxSuffix) {
+          maxSuffix = suffix;
+        }
+      };
+
+      get().sales.forEach(s => {
+        if (!s.invoiceNumber) return;
+        if (prefixWithDash && !s.invoiceNumber.startsWith(prefixWithDash)) return;
+        updateMaxSuffixFromInvoice(s.invoiceNumber);
+      });
+
+      const query = supabase
+        .from('sales')
+        .select('invoice_number')
+        .order('created_at', { ascending: false })
+        .limit(1000);
+
+      const finalQuery = prefixWithDash
+        ? query.ilike('invoice_number', `${prefixWithDash}%`)
+        : query;
+
+      const { data: latestSales, error: latestError } = await finalQuery;
+      if (!latestError && latestSales?.length) {
+        latestSales.forEach(row => {
+          if (row?.invoice_number) updateMaxSuffixFromInvoice(row.invoice_number);
+        });
+      }
+
+      const nextNumber = maxSuffix + 1;
+      const maxAttempts = 20;
+
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
         const invoiceNumber = generateInvoiceNumber(cleanPrefix, nextNumber + attempt);
         const saleData = {
           ...sale,
@@ -141,34 +174,84 @@ export const useSaleStore = create<SaleState>((set, get) => ({
 
         const errorText = formatSupabaseError(sErr).toLowerCase();
         const isDuplicateInvoice = errorText.includes('duplicate') && errorText.includes('invoice');
-        if (!isDuplicateInvoice || attempt === 1) break;
+        if (!isDuplicateInvoice) break;
       }
 
       if (sErr) throw sErr;
 
       const saleId = insertedSale.id;
 
-      // Insert sale items
-      const itemsToInsert = sale.items.map(item => ({
-        sale_id: saleId,
-        product_id: item.productId,
-        product_name: item.productName,
-        quantity: item.quantity,
-        unit_price: item.unitPrice,
-        total: item.total,
-        imei: item.imei,
-      }));
+      // Insert sale items, preserving both IMEI values when available
+      const itemsToInsert = sale.items.map(item => {
+        const hasSecondImei = Boolean(item.imei2?.trim());
+        const imeiValue = hasSecondImei ? (item.imei1 || item.imei || null) : (item.imei || item.imei1 || null);
 
-      const { error: iErr } = await supabase
-        .from('sale_items')
-        .insert(itemsToInsert);
+        const payload: any = {
+          sale_id: saleId,
+          product_id: item.productId,
+          product_name: item.productName,
+          quantity: item.quantity,
+          unit_price: item.unitPrice,
+          total: item.total,
+          imei: imeiValue,
+        };
 
-      if (iErr) throw iErr;
+        if (item.imei1) payload.imei1 = item.imei1;
+        if (item.imei2) payload.imei2 = item.imei2;
+        return payload;
+      });
+
+      let iErr: any = null;
+      try {
+        const response = await supabase
+          .from('sale_items')
+          .insert(itemsToInsert, { returning: 'minimal' });
+        iErr = response.error;
+      } catch (error) {
+        iErr = error;
+      }
+
+      if (iErr) {
+        const errorText = formatSupabaseError(iErr).toLowerCase();
+        const missingImeiColumn = errorText.includes('imei1') || errorText.includes('imei2');
+        if (missingImeiColumn) {
+          // Fallback: store both IMEIs in the imei field, separated by || if both exist
+          const fallbackItems = sale.items.map(item => {
+            let imeiValue = null;
+            if (item.imei1 && item.imei2) {
+              // Both IMEIs exist - store them separated by ||
+              imeiValue = `${item.imei1}||${item.imei2}`;
+            } else if (item.imei1) {
+              imeiValue = item.imei1;
+            } else if (item.imei2) {
+              imeiValue = item.imei2;
+            } else if (item.imei) {
+              imeiValue = item.imei;
+            }
+            return {
+              sale_id: saleId,
+              product_id: item.productId,
+              product_name: item.productName,
+              quantity: item.quantity,
+              unit_price: item.unitPrice,
+              total: item.total,
+              imei: imeiValue,
+            };
+          });
+          const fallbackResponse = await supabase
+            .from('sale_items')
+            .insert(fallbackItems, { returning: 'minimal' });
+          if (fallbackResponse.error) throw fallbackResponse.error;
+        } else {
+          throw iErr;
+        }
+      }
 
       // Update available IMEI and product stock values.
       for (const item of sale.items) {
-        if (item.imei) {
-          await useImeiStore.getState().markImeiSold(item.imei);
+        const soldImei = item.imei || item.imei1;
+        if (soldImei) {
+          await useImeiStore.getState().markImeiSold(soldImei);
         } else {
           const { data: prod } = await supabase.from('products').select('stock_quantity').eq('id', item.productId).single();
           if (prod) {

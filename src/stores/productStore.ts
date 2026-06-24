@@ -51,6 +51,34 @@ function toCamelCase(obj: any) {
   return result;
 }
 
+// Cache for table columns to avoid repeated schema calls
+const tableColumnsCache: Map<string, string[]> = new Map();
+
+async function getTableColumns(table: string) {
+  if (tableColumnsCache.has(table)) return tableColumnsCache.get(table)!;
+  try {
+    const { data, error } = await supabase.from(table).select('*').limit(1);
+    if (error) {
+      // If table doesn't exist or other error, cache empty array to avoid repeated failing requests
+      console.warn(`Unable to read columns for table ${table}:`, error);
+      tableColumnsCache.set(table, []);
+      return [];
+    }
+    if (!data || data.length === 0) {
+      // No rows to infer columns from; cache empty to be safe
+      tableColumnsCache.set(table, []);
+      return [];
+    }
+    const cols = Object.keys(data[0]);
+    tableColumnsCache.set(table, cols);
+    return cols;
+  } catch (err) {
+    console.warn(`Error fetching table columns for ${table}:`, err);
+    tableColumnsCache.set(table, []);
+    return [];
+  }
+}
+
 export const useProductStore = create<ProductState>((set, get) => ({
   products: [],
   categories: [],
@@ -59,12 +87,20 @@ export const useProductStore = create<ProductState>((set, get) => ({
 
   loadData: async () => {
     try {
-      const [pRes, cRes, bRes, uRes] = await Promise.all([
+      const [pRes, cRes, bRes] = await Promise.all([
         supabase.from('products').select('*').order('created_at', { ascending: false }),
         supabase.from('categories').select('*').order('name'),
         supabase.from('brands').select('*').order('name'),
-        supabase.from('units').select('*').order('name')
       ]);
+
+      // Only attempt to fetch units if the table exists (cache checked)
+      const unitCols = await getTableColumns('units');
+      let uRes: any = { data: null, error: null };
+      if (unitCols.length > 0) {
+        uRes = await supabase.from('units').select('*').order('name');
+      } else {
+        uRes = { data: null, error: { message: `units table unavailable` } };
+      }
 
       const defaultMockUnit: Unit = {
         id: '00000000-0000-0000-0000-000000000000',
@@ -73,13 +109,20 @@ export const useProductStore = create<ProductState>((set, get) => ({
         status: 'active'
       };
 
+      const unitsData = uRes.data && Array.isArray(uRes.data) && uRes.data.length > 0
+        ? (uRes.data.map(toCamelCase) as Unit[])
+        : [defaultMockUnit];
+
+      if (uRes.error) {
+        // Log once; getTableColumns has already cached missing state so subsequent loads won't spam
+        console.warn('Units table missing or unavailable, defaulting to Piece unit.', uRes.error);
+      }
+
       set({
         products: (pRes.data || []).map(toCamelCase) as Product[],
         categories: (cRes.data || []).map(toCamelCase) as Category[],
         brands: (bRes.data || []).map(toCamelCase) as Brand[],
-        units: uRes.data && uRes.data.length > 0
-          ? (uRes.data.map(toCamelCase) as Unit[])
-          : [defaultMockUnit],
+        units: unitsData,
       });
     } catch (err) {
       console.error('Error loading product data:', err);
@@ -97,6 +140,14 @@ export const useProductStore = create<ProductState>((set, get) => ({
       delete snakeData.color;
       delete snakeData.storage;
       delete snakeData.ram;
+
+      // Only keep keys that exist in the products table to avoid 400 errors when schema differs
+      const prodCols = await getTableColumns('products');
+      if (prodCols.length > 0) {
+        Object.keys(snakeData).forEach(k => {
+          if (!prodCols.includes(k)) delete snakeData[k];
+        });
+      }
 
       const { data, error } = await supabase
         .from('products')
@@ -129,6 +180,14 @@ export const useProductStore = create<ProductState>((set, get) => ({
       delete snakeData.color;
       delete snakeData.storage;
       delete snakeData.ram;
+
+      // Filter update payload to existing product columns
+      const prodCols = await getTableColumns('products');
+      if (prodCols.length > 0) {
+        Object.keys(snakeData).forEach(k => {
+          if (!prodCols.includes(k)) delete snakeData[k];
+        });
+      }
 
       const { error } = await supabase
         .from('products')

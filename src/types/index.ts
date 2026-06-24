@@ -5,6 +5,7 @@ type Product = {
   sku: string;
   barcode: string;
   imei?: string;
+  model?: string;
   brandId: string;
   categoryId: string;
   color?: string;
