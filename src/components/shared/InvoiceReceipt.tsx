@@ -170,7 +170,7 @@ export default function InvoiceReceipt({
     const termsLines = termsLinesRaw.flatMap(l => l.trim() === '' ? [''] : wrapText(l, printWidth));
 
     // Header: Show store name & address only if logo is NOT enabled
-    // (logo preference takes precedence)
+    // Logo display is handled separately and both are independent
     if (!receiptSettings.showLogo) {
       if (shopNameText) {
         const dividerLength = printWidth - shopNameText.length - 1;
@@ -180,14 +180,15 @@ export default function InvoiceReceipt({
           lines.push(centerText(shopNameText, printWidth));
         }
       }
-      addressLines.forEach(line => {
-        if (line.trim() !== '') {
-          lines.push(centerText(line, printWidth));
-        }
-      });
-      if (shopSettings.phone) {
-        lines.push(centerText(`Phone: ${shopSettings.phone}`, printWidth));
+    }
+    // Address always shown
+    addressLines.forEach(line => {
+      if (line.trim() !== '') {
+        lines.push(centerText(line, printWidth));
       }
+    });
+    if (shopSettings.phone) {
+      lines.push(centerText(`Phone: ${shopSettings.phone}`, printWidth));
     }
     lines.push('-'.repeat(printWidth));
 
@@ -303,28 +304,30 @@ export default function InvoiceReceipt({
           className
         )}
       >
-        {/* Header: Logo OR Store Name (mutually exclusive) */}
-        {receiptSettings.showLogo ? (
+        {/* Header: Logo OR Store Name (mutually exclusive), but address/phone always shown */}
+        {receiptSettings.showLogo && (
           <div className="mx-auto mb-2 flex items-center justify-center w-20 h-20"> 
             <img src={logoImage} alt="Logo" className="w-full h-full object-contain" />
           </div>
-        ) : (
-          <div className="text-center space-y-1">
-            <h2 className="font-extrabold text-[#1e3a8a] text-2xl uppercase tracking-wider">{shopNameText}</h2>
-            <div className="text-xs font-semibold text-gray-700 leading-normal">
-              {receiptSettings.header ? (
-                receiptSettings.header.split('\n').map((line, idx) => (
-                  <p key={idx}>{line}</p>
-                ))
-              ) : (
-                <>
-                  <p>{companyAddress.join(', ')}</p>
-                  {shopSettings.phone && <p>Phone: [ {shopSettings.phone} ]</p>}
-                </>
-              )}
-            </div>
-          </div>
         )}
+
+        {!receiptSettings.showLogo && (
+          <h2 className="font-extrabold text-[#1e3a8a] text-2xl uppercase tracking-wider text-center">{shopNameText}</h2>
+        )}
+
+        {/* Address and Contact - Always shown */}
+        <div className="text-center text-xs font-semibold text-gray-700 leading-normal">
+          {receiptSettings.header ? (
+            receiptSettings.header.split('\n').map((line, idx) => (
+              <p key={idx}>{line}</p>
+            ))
+          ) : (
+            <>
+              <p>{companyAddress.join(', ')}</p>
+              {shopSettings.phone && <p>Phone: [ {shopSettings.phone} ]</p>}
+            </>
+          )}
+        </div>
 
         {/* Invoice Type Label */}
         <div className="pt-2 text-center">
@@ -579,22 +582,23 @@ export default function InvoiceReceipt({
       className={cn('space-y-4 text-sm text-gray-800 p-4 bg-white rounded-lg shadow-sm border border-gray-100 mx-auto', className)}
     >
       <div className="text-center">
-          {receiptSettings.showLogo ? (
+          {receiptSettings.showLogo && (
             <div className="mx-auto mb-2 flex items-center justify-center w-16 h-16"> 
               <img src={logoImage} alt="Logo" className="w-full h-full object-contain" />
             </div>
-          ) : (
-            <>
-              <h2 className="font-bold text-gray-900 text-xl uppercase tracking-wide">{shopNameText}</h2>
-              <div className="text-xs text-gray-500 mt-1">
-                {companyAddress.map((line, index) => (
-                  <p key={index}>{line}</p>
-                ))}
-              </div>
-              {shopPhoneText && <p className="text-xs text-gray-500 mt-1">{shopPhoneText}</p>}
-              {shopEmailText && <p className="text-xs text-gray-500">{shopEmailText}</p>}
-            </>
           )}
+
+          {!receiptSettings.showLogo && (
+            <h2 className="font-bold text-gray-900 text-xl uppercase tracking-wide">{shopNameText}</h2>
+          )}
+
+          <div className="text-xs text-gray-500 mt-1">
+            {companyAddress.map((line, index) => (
+              <p key={index}>{line}</p>
+            ))}
+          </div>
+          {shopPhoneText && <p className="text-xs text-gray-500 mt-1">{shopPhoneText}</p>}
+          {shopEmailText && <p className="text-xs text-gray-500">{shopEmailText}</p>}
       </div>
 
       <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">

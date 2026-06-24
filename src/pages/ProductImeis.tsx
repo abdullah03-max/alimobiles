@@ -19,22 +19,24 @@ export default function ProductImeis() {
   const { imeis, loadData: loadImeis, addImei, removeImei, getImeisByProduct, getAvailableByProduct } = useImeiStore();
   const toast = useToast();
 
-  const [imeiInput, setImeiInput] = useState('');
+  const [imei1Input, setImei1Input] = useState('');
+  const [imei2Input, setImei2Input] = useState('');
   const [selectedColor, setSelectedColor] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [expandedColors, setExpandedColors] = useState<Record<string, boolean>>({});
   
-  const inputRef = useRef<HTMLInputElement>(null);
+  const imei1Ref = useRef<HTMLInputElement>(null);
+  const imei2Ref = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadProducts();
     loadImeis();
   }, [loadProducts, loadImeis]);
 
-  // Focus the scanner input on mount
+  // Focus the first IMEI field on mount
   useEffect(() => {
-    inputRef.current?.focus();
+    imei1Ref.current?.focus();
   }, []);
 
   const product = products.find((p) => p.id === productId);
@@ -90,18 +92,15 @@ export default function ProductImeis() {
   const handleAddImei = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!productId) return;
-    
-    const trimmed = imeiInput.trim();
-    
-    // Clear input field immediately for hands-free scanning
-    setImeiInput('');
-    setError('');
-    
-    // Maintain input focus immediately
-    inputRef.current?.focus();
 
-    if (!trimmed) {
-      setError('Enter a valid IMEI');
+    const trimmed1 = imei1Input.trim();
+    const trimmed2 = imei2Input.trim();
+
+    // Keep the inputs while validating; only clear after success
+    setError('');
+
+    if (!trimmed1 && !trimmed2) {
+      setError('Enter at least one IMEI number');
       return;
     }
 
@@ -112,30 +111,35 @@ export default function ProductImeis() {
     }
 
     setLoading(true);
-    // `addImei` expects (productId, imei1, imei2, color?) — pass empty imei2 when only one IMEI provided
-    const added = await addImei(productId, trimmed, '', selectedColor || undefined);
+    const added = await addImei(productId, trimmed1, trimmed2, selectedColor || undefined);
     setLoading(false);
 
     if (!added) {
-      setError(`IMEI "${trimmed}" already exists or could not be added`);
-      toast.error('Duplicate IMEI', `IMEI "${trimmed}" already exists in the system`);
-    } else {
-      toast.success('IMEI added', trimmed);
-      // Expand the color section when a new IMEI is added
-      setExpandedColors(prev => ({ ...prev, [selectedColor]: true }));
+      const duplicateImei = !useImeiStore.getState().isImeiUnique(trimmed1)
+        ? trimmed1
+        : !useImeiStore.getState().isImeiUnique(trimmed2)
+        ? trimmed2
+        : '';
+      const message = duplicateImei
+        ? `IMEI "${duplicateImei}" already exists in the system`
+        : 'IMEI could not be added';
+      setError(message);
+      toast.error('Duplicate IMEI', message);
+      return;
     }
-    
-    // Maintain input focus after loading state finishes
-    setTimeout(() => {
-      inputRef.current?.focus();
-    }, 50);
+
+    toast.success('IMEI added', trimmed1 || trimmed2);
+    setExpandedColors(prev => ({ ...prev, [selectedColor]: true }));
+    setImei1Input('');
+    setImei2Input('');
+    imei1Ref.current?.focus();
   };
 
   const handleRemove = async (imeiId: string) => {
     if (!imeiId) return;
     await removeImei(imeiId);
     toast.success('IMEI removed');
-    inputRef.current?.focus();
+    imei1Ref.current?.focus();
   };
 
   const toggleColorExpand = (color: string) => {
@@ -266,17 +270,44 @@ export default function ProductImeis() {
                 </div>
               )}
               
-              <div>
-                <Label htmlFor="imei-input" className="text-xs font-semibold">IMEI Number</Label>
-                <Input
-                  id="imei-input"
-                  ref={inputRef}
-                  value={imeiInput}
-                  onChange={(e) => setImeiInput(e.target.value)}
-                  placeholder="Scan or type IMEI"
-                  className="flex-1 font-mono text-xs mt-2"
-                  autoComplete="off"
-                />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="imei1-input" className="text-xs font-semibold">IMEI 1</Label>
+                  <Input
+                    id="imei1-input"
+                    ref={imei1Ref}
+                    value={imei1Input}
+                    onChange={(e) => setImei1Input(e.target.value)}
+                    placeholder="Scan or type IMEI 1"
+                    className="mt-2 font-mono text-xs"
+                    autoComplete="off"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        imei2Ref.current?.focus();
+                      }
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="imei2-input" className="text-xs font-semibold">IMEI 2</Label>
+                  <Input
+                    id="imei2-input"
+                    ref={imei2Ref}
+                    value={imei2Input}
+                    onChange={(e) => setImei2Input(e.target.value)}
+                    placeholder="Scan or type IMEI 2"
+                    className="mt-2 font-mono text-xs"
+                    autoComplete="off"
+                    onKeyDown={async (e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        await handleAddImei();
+                      }
+                    }}
+                  />
+                </div>
               </div>
 
               <Button type="submit" disabled={loading} className="w-full bg-orange-500 hover:bg-orange-600">

@@ -58,13 +58,17 @@ export const useImeiStore = create<ImeiState>((set, get) => ({
   addImei: async (productId, imei1, imei2, color, ram, storage) => {
     const normalized1 = imei1.trim();
     const normalized2 = imei2.trim();
-    if (!normalized1 || !normalized2) return null;
-    if (!get().isImeiUnique(normalized1) || !get().isImeiUnique(normalized2)) return null;
+
+    // Only require one IMEI number, but allow both if provided.
+    if (!normalized1 && !normalized2) return null;
+
+    if (normalized1 && !get().isImeiUnique(normalized1)) return null;
+    if (normalized2 && !get().isImeiUnique(normalized2)) return null;
 
     const newImei: ProductIMEI = {
       id: generateId(),
       productId,
-      imei: normalized1,
+      imei: normalized1 || normalized2,
       imei1: normalized1,
       imei2: normalized2,
       status: 'available',

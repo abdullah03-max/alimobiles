@@ -304,43 +304,71 @@ export const useSaleStore = create<SaleState>((set, get) => ({
       const sale = get().sales.find(s => s.id === id);
       if (!sale) return false;
 
+      console.log(`[Sale Delete] Starting deletion of sale ${id} with ${sale.items.length} items`);
+
+      // STEP 1: Process each sale item - mark IMEIs as available and restore product stock
       for (const item of sale.items) {
-        if (item.imei) {
-          await useImeiStore.getState().markImeiAvailable(item.imei);
-          continue;
-        }
+        try {
+          if (item.imei) {
+            // If item has IMEI, mark it as available
+            const marked = await useImeiStore.getState().markImeiAvailable(item.imei);
+            if (marked) {
+              console.log(`[Sale Delete] Marked IMEI ${item.imei} as available`);
+            }
+            continue;
+          }
 
-        const { data: product, error: prodError } = await supabase
-          .from('products')
-          .select('stock_quantity')
-          .eq('id', item.productId)
-          .single();
+          // Otherwise, restore product stock quantity
+          const { data: product, error: prodError } = await supabase
+            .from('products')
+            .select('stock_quantity')
+            .eq('id', item.productId)
+            .single();
 
-        if (prodError) throw prodError;
-        if (product) {
-          const newQty = Math.max(0, (product.stock_quantity || 0) + item.quantity);
-          await supabase.from('products').update({ stock_quantity: newQty }).eq('id', item.productId);
+          if (prodError) throw prodError;
+          if (product) {
+            const newQty = Math.max(0, (product.stock_quantity || 0) + item.quantity);
+            await supabase.from('products').update({ stock_quantity: newQty }).eq('id', item.productId);
+            console.log(`[Sale Delete] Restored ${item.quantity} units to product ${item.productId} (new qty: ${newQty})`);
+          }
+        } catch (itemErr) {
+          console.warn(`[Sale Delete] Warning processing item for product ${item.productId}:`, itemErr);
+          // Continue processing other items even if one fails
         }
       }
 
+      // STEP 2: Delete all sale_items from Supabase
+      console.log(`[Sale Delete] Deleting ${sale.items.length} sale items from database`);
       const { error: deleteItemsError } = await supabase
         .from('sale_items')
         .delete()
         .eq('sale_id', id);
 
-      if (deleteItemsError) throw deleteItemsError;
+      if (deleteItemsError) {
+        console.error('[Sale Delete] Error deleting sale_items:', deleteItemsError);
+        throw deleteItemsError;
+      }
 
+      // STEP 3: Delete the sale itself from Supabase
+      console.log(`[Sale Delete] Deleting sale record ${id}`);
       const { error: deleteSaleError } = await supabase
         .from('sales')
         .delete()
         .eq('id', id);
 
-      if (deleteSaleError) throw deleteSaleError;
+      if (deleteSaleError) {
+        console.error('[Sale Delete] Error deleting sale:', deleteSaleError);
+        throw deleteSaleError;
+      }
 
-      set({ sales: get().sales.filter(s => s.id !== id) });
+      // STEP 4: Update local state
+      const updatedSales = get().sales.filter(s => s.id !== id);
+      set({ sales: updatedSales });
+      console.log(`[Sale Delete] Successfully deleted sale ${id} and all related records`);
+      
       return true;
     } catch (err) {
-      console.error('Error deleting sale:', err);
+      console.error('[Sale Delete] Error deleting sale:', err);
       return false;
     }
   },

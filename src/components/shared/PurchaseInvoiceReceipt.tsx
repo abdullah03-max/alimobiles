@@ -314,28 +314,30 @@ export default function PurchaseInvoiceReceipt({
           className
         )}
       >
-        {/* Header: Logo OR Store Name (mutually exclusive) */}
-        {receiptSettings.showLogo ? (
+        {/* Header: Logo OR Store Name (mutually exclusive), but address/phone always shown */}
+        {receiptSettings.showLogo && (
           <div className="mx-auto mb-2 flex items-center justify-center w-20 h-20"> 
             <img src={logoImage} alt="Logo" className="w-full h-full object-contain" />
           </div>
-        ) : (
-          <div className="text-center space-y-1">
-            <h2 className="font-extrabold text-[#1e3a8a] text-2xl uppercase tracking-wider">{shopNameText}</h2>
-            <div className="text-xs font-semibold text-gray-700 leading-normal">
-              {receiptSettings.header ? (
-                receiptSettings.header.split('\n').map((line, idx) => (
-                  <p key={idx}>{line}</p>
-                ))
-              ) : (
-                <>
-                  <p>{companyAddress.join(', ')}</p>
-                  {shopSettings.phone && <p>Phone: [ {shopSettings.phone} ]</p>}
-                </>
-              )}
-            </div>
-          </div>
         )}
+
+        {!receiptSettings.showLogo && (
+          <h2 className="font-extrabold text-[#1e3a8a] text-2xl uppercase tracking-wider text-center">{shopNameText}</h2>
+        )}
+
+        {/* Address and Contact - Always shown */}
+        <div className="text-center text-xs font-semibold text-gray-700 leading-normal">
+          {receiptSettings.header ? (
+            receiptSettings.header.split('\n').map((line, idx) => (
+              <p key={idx}>{line}</p>
+            ))
+          ) : (
+            <>
+              <p>{companyAddress.join(', ')}</p>
+              {shopSettings.phone && <p>Phone: [ {shopSettings.phone} ]</p>}
+            </>
+          )}
+        </div>
 
         {/* Purchase Order Type Label */}
         <div className="pt-2 text-center">
