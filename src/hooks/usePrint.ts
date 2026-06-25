@@ -480,7 +480,7 @@ export function usePrint() {
             letter-spacing: 1px !important;
           }
           
-          /* Urdu warranty statement - Jameel Noori Nastaleeq */
+          /* Urdu warranty statement - Jameel Noori Nastaleeq Kasheeda */
           div[style*="direction: rtl"],
           [style*="direction: rtl"] p,
           [style*="direction: rtl"] span,
@@ -488,8 +488,11 @@ export function usePrint() {
           [style*="direction: rtl"] td,
           [style*="direction: rtl"] th,
           .urdu-text,
-          .footer-urdu {
-            font-family: 'Jameel Noori Nastaleeq', 'Jameel Noori Nastaleeq Kasheeda', 'Alvi Nastaleeq', 'Urdu Typesetting', 'Noto Nastaliq Urdu', sans-serif !important;
+          .footer-urdu,
+          .text-center[style*="direction: rtl"],
+          div[dir="rtl"],
+          [dir="rtl"] {
+            font-family: 'Jameel Noori Nastaleeq Kasheeda', 'Jameel Noori Nastaleeq', 'Alvi Nastaleeq', 'Urdu Typesetting', 'Noto Nastaliq Urdu', sans-serif !important;
             font-weight: 700 !important;
             font-size: 11px !important;
             color: #000 !important;
@@ -497,10 +500,13 @@ export function usePrint() {
             line-height: 1.5 !important;
           }
           
-          /* Urdu text in any element with rtl direction */
-          [dir="rtl"] {
-            font-family: 'Jameel Noori Nastaleeq', 'Jameel Noori Nastaleeq Kasheeda', 'Alvi Nastaleeq', 'Urdu Typesetting', 'Noto Nastaliq Urdu', sans-serif !important;
+          /* Urdu text in any element with rtl direction - override for footer */
+          [dir="rtl"],
+          .rtl-text,
+          .urdu-footer {
+            font-family: 'Jameel Noori Nastaleeq Kasheeda', 'Jameel Noori Nastaleeq', 'Alvi Nastaleeq', 'Urdu Typesetting', 'Noto Nastaliq Urdu', sans-serif !important;
             font-weight: 700 !important;
+            font-size: 11px !important;
           }
           
           .barcode-container {
@@ -781,9 +787,9 @@ export function usePrint() {
             font-family: 'Arial', 'Helvetica', sans-serif !important;
           }
           
-          /* Urdu for A4 - Jameel Noori */
+          /* Urdu for A4 - Jameel Noori Nastaleeq Kasheeda */
           [dir="rtl"], [style*="direction: rtl"] {
-            font-family: 'Jameel Noori Nastaleeq', 'Jameel Noori Nastaleeq Kasheeda', 'Alvi Nastaleeq', 'Urdu Typesetting', sans-serif !important;
+            font-family: 'Jameel Noori Nastaleeq Kasheeda', 'Jameel Noori Nastaleeq', 'Alvi Nastaleeq', 'Urdu Typesetting', sans-serif !important;
           }
           
           @media print {
@@ -847,9 +853,9 @@ export function usePrint() {
       .uppercase { text-transform: uppercase; }
       .capitalize { text-transform: capitalize; }
       
-      /* Urdu for thermal - Jameel Noori */
+      /* Urdu for thermal - Jameel Noori Nastaleeq Kasheeda */
       [dir="rtl"], [style*="direction: rtl"] {
-        font-family: 'Jameel Noori Nastaleeq', 'Jameel Noori Nastaleeq Kasheeda', 'Alvi Nastaleeq', 'Urdu Typesetting', sans-serif !important;
+        font-family: 'Jameel Noori Nastaleeq Kasheeda', 'Jameel Noori Nastaleeq', 'Alvi Nastaleeq', 'Urdu Typesetting', sans-serif !important;
       }
     `;
     }
