@@ -52,45 +52,24 @@ function toCamelCase(obj: any) {
 }
 
 // Cache for table columns to avoid repeated schema calls
-const tableColumnsCache: Map<string, string[] | null> = new Map();
-let hasLoggedMissingUnits = false;
+const tableColumnsCache: Map<string, string[]> = new Map();
 
 async function getTableColumns(table: string) {
-  if (tableColumnsCache.has(table)) {
-    const cached = tableColumnsCache.get(table);
-    return cached ?? [];
-  }
-
+  if (tableColumnsCache.has(table)) return tableColumnsCache.get(table)!;
   try {
     const { data, error } = await supabase.from(table).select('*').limit(1);
     if (error) {
+      // If table doesn't exist or other error, cache empty array to avoid repeated failing requests
       console.warn(`Unable to read columns for table ${table}:`, error);
       tableColumnsCache.set(table, []);
       return [];
     }
-
-    if (data && data.length > 0) {
-      const cols = Object.keys(data[0]);
-      tableColumnsCache.set(table, cols);
-      return cols;
-    }
-
-    // Table exists but has no rows. Use information_schema to infer columns without failing.
-    const { data: infoData, error: infoError } = await supabase
-      .from('information_schema.columns')
-      .select('column_name')
-      .eq('table_name', table)
-      .eq('table_schema', 'public');
-
-    if (infoError || !infoData || infoData.length === 0) {
-      if (infoError) {
-        console.warn(`Unable to inspect schema for ${table}:`, infoError);
-      }
+    if (!data || data.length === 0) {
+      // No rows to infer columns from; cache empty to be safe
       tableColumnsCache.set(table, []);
       return [];
     }
-
-    const cols = infoData.map((row: any) => row.column_name).filter(Boolean);
+    const cols = Object.keys(data[0]);
     tableColumnsCache.set(table, cols);
     return cols;
   } catch (err) {
@@ -134,9 +113,9 @@ export const useProductStore = create<ProductState>((set, get) => ({
         ? (uRes.data.map(toCamelCase) as Unit[])
         : [defaultMockUnit];
 
-      if (uRes.error && !hasLoggedMissingUnits) {
+      if (uRes.error) {
+        // Log once; getTableColumns has already cached missing state so subsequent loads won't spam
         console.warn('Units table missing or unavailable, defaulting to Piece unit.', uRes.error);
-        hasLoggedMissingUnits = true;
       }
 
       set({
@@ -226,31 +205,33 @@ export const useProductStore = create<ProductState>((set, get) => ({
 
   deleteProduct: async (id) => {
     const imeiStore = useImeiStore.getState();
-    
-    try {
-      // STEP 1: Delete all related IMEI records first (from localStorage)
-      // This ensures IMEIs are cleaned up BEFORE product deletion
-      const deletedImeis = imeiStore.deleteImeisByProduct(id);
-      console.log(`[Product Delete] Cleaned up ${deletedImeis.length} IMEI records for product ${id}`);
+    const deletedImeis = imeiStore.deleteImeisByProduct(id);
 
-      // STEP 2: Delete the product from Supabase
-      const { error: deleteError } = await supabase.from('products').delete().eq('id', id);
-      
-      if (deleteError) {
-        // If product deletion fails, restore IMEIs to their previous state
-        imeiStore.restoreImeis(deletedImeis);
-        console.error('[Product Delete] Failed - restoring IMEIs:', deleteError);
-        throw deleteError;
+    const deleteRelatedDbImeis = async () => {
+      const tableNames = ['product_imeis', 'product_imei'];
+      for (const table of tableNames) {
+        try {
+          const { error } = await supabase.from(table).delete().eq('product_id', id);
+          if (error && error.code !== 'PGRST205' && error.code !== '42P01') {
+            console.warn(`Unable to delete related IMEIs from ${table}:`, error);
+          }
+        } catch (err) {
+          console.warn(`Safe delete failed for ${table}:`, err);
+        }
       }
+    };
 
-      // STEP 3: Update local state
-      const updatedProducts = get().products.filter(p => p.id !== id);
-      set({ products: updatedProducts });
-      console.log(`[Product Delete] Successfully deleted product ${id} and cleaned up all related IMEI records`);
-      
+    try {
+      await deleteRelatedDbImeis();
+      const { error } = await supabase.from('products').delete().eq('id', id);
+      if (error) {
+        imeiStore.restoreImeis(deletedImeis);
+        throw error;
+      }
+      set({ products: get().products.filter(p => p.id !== id) });
       return true;
     } catch (err) {
-      console.error('[Product Delete] Error deleting product:', err);
+      console.error('Error deleting product:', err);
       return false;
     }
   },

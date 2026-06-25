@@ -11,7 +11,7 @@ interface CartState {
   customerName: string;
   notes: string;
 
-  addItem: (product: Product, imei?: string) => void;
+  addItem: (product: Product, imei?: string) => boolean;
   removeItem: (productId: string, imei?: string) => void;
   updateQuantity: (productId: string, quantity: number, imei?: string) => void;
   clearCart: () => void;
@@ -39,8 +39,10 @@ export const useCartStore = create<CartState>((set, get) => ({
   addItem: (product: Product, imei?: string) => {
     const { items } = get();
     const itemImei = imei ?? product.imei;
+    const normalize = (value?: string) => value?.trim().toLowerCase() || '';
+    const itemImeiNormalized = normalize(itemImei);
     const existing = itemImei
-      ? items.find(i => i.productId === product.id && i.imei === itemImei)
+      ? items.find(i => i.productId === product.id && normalize(i.imei) === itemImeiNormalized)
       : items.find(i => i.productId === product.id && !i.imei);
 
     let productColors: string[] = [];
@@ -66,9 +68,16 @@ export const useCartStore = create<CartState>((set, get) => ({
       const imeiRecord = useImeiStore.getState().findByImei(itemImei);
       const imei1 = imeiRecord?.imei1 || itemImei;
       const imei2 = imeiRecord?.imei2 || '';
-      
-      if (existing) return;
-      
+      const normalizedTargets = [normalize(imei1), normalize(imei2)].filter(Boolean);
+
+      const duplicateDevice = items.some(i => {
+        if (i.productId !== product.id) return false;
+        const existingImeis = [normalize(i.imei), normalize(i.imei1), normalize(i.imei2)].filter(Boolean);
+        return normalizedTargets.some(target => existingImeis.includes(target));
+      });
+      if (duplicateDevice) return false;
+      if (existing) return false;
+
       const color = imeiRecord?.color || productColors[0] || product?.color || '';
       const ram = imeiRecord?.ram || productRams[0] || product?.ram || '';
       const storage = imeiRecord?.storage || productStorages[0] || product?.storage || '';
@@ -102,7 +111,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         ptaStatus,
       };
       set({ items: [...items, newItem] });
-      return;
+      return true;
     }
 
     if (existing) {
@@ -114,6 +123,7 @@ export const useCartStore = create<CartState>((set, get) => ({
             : i
         ),
       });
+      return true;
     } else {
       const brand = useProductStore.getState().getBrandById(product.brandId);
       const category = useProductStore.getState().getCategoryById(product.categoryId);
@@ -144,6 +154,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         ptaStatus,
       };
       set({ items: [...items, newItem] });
+      return true;
     }
   },
 

@@ -66,23 +66,7 @@ export const useSaleStore = create<SaleState>((set, get) => ({
       const saleItemsBySaleId = (saleItemsRes.data || []).reduce((acc: Record<string, any[]>, item) => {
         const saleId = item.sale_id;
         if (!acc[saleId]) acc[saleId] = [];
-        const camelItem = toCamelCase(item);
-        if (camelItem.productName && camelItem.productName.startsWith('{')) {
-          try {
-            const parsed = JSON.parse(camelItem.productName);
-            camelItem.productName = parsed.name || camelItem.productName;
-            camelItem.imei = parsed.imei || camelItem.imei || null;
-            camelItem.imei1 = parsed.imei1 || camelItem.imei1 || null;
-            camelItem.imei2 = parsed.imei2 || camelItem.imei2 || null;
-            camelItem.color = parsed.color || null;
-            camelItem.storage = parsed.storage || null;
-            camelItem.ram = parsed.ram || null;
-            camelItem.ptaStatus = parsed.ptaStatus || null;
-          } catch (e) {
-            // ignore
-          }
-        }
-        acc[saleId].push(camelItem);
+        acc[saleId].push(toCamelCase(item));
         return acc;
       }, {});
 
@@ -198,45 +182,22 @@ export const useSaleStore = create<SaleState>((set, get) => ({
       const saleId = insertedSale.id;
 
       // Insert sale items, preserving both IMEI values when available
-      const normalizeProductName = (rawName: string | undefined) => {
-        if (!rawName || typeof rawName !== 'string') return '';
-        const trimmed = rawName.trim();
-        if (trimmed.startsWith('{')) {
-          try {
-            const parsed = JSON.parse(trimmed);
-            return parsed.name || rawName;
-          } catch {
-            return rawName;
-          }
-        }
-        return rawName;
-      };
-
       const itemsToInsert = sale.items.map(item => {
-        const actualProductName = normalizeProductName(item.productName);
         const hasSecondImei = Boolean(item.imei2?.trim());
         const imeiValue = hasSecondImei ? (item.imei1 || item.imei || null) : (item.imei || item.imei1 || null);
-        const shouldSerialize = Boolean(item.imei || item.imei1 || item.imei2 || item.color || item.ram || item.storage || item.ptaStatus);
 
         const payload: any = {
           sale_id: saleId,
           product_id: item.productId,
-          product_name: shouldSerialize
-            ? JSON.stringify({
-                name: actualProductName,
-                imei: item.imei || null,
-                imei1: item.imei1 || null,
-                imei2: item.imei2 || null,
-                color: item.color || null,
-                ram: item.ram || null,
-                storage: item.storage || null,
-                ptaStatus: item.ptaStatus || null,
-              })
-            : actualProductName,
+          product_name: item.productName,
           quantity: item.quantity,
           unit_price: item.unitPrice,
           total: item.total,
           imei: imeiValue,
+          color: item.color || null,
+          storage: item.storage || null,
+          ram: item.ram || null,
+          pta_status: item.ptaStatus || null,
         };
 
         if (item.imei1) payload.imei1 = item.imei1;
@@ -279,6 +240,10 @@ export const useSaleStore = create<SaleState>((set, get) => ({
               unit_price: item.unitPrice,
               total: item.total,
               imei: imeiValue,
+              color: item.color || null,
+              storage: item.storage || null,
+              ram: item.ram || null,
+              pta_status: item.ptaStatus || null,
             };
           });
           const fallbackResponse = await supabase
@@ -305,10 +270,7 @@ export const useSaleStore = create<SaleState>((set, get) => ({
       }
 
       const finalSale = toCamelCase(insertedSale) as Sale;
-      finalSale.items = sale.items.map(item => ({
-        ...item,
-        productName: normalizeProductName(item.productName),
-      }));
+      finalSale.items = sale.items;
 
       const sales = [finalSale, ...get().sales];
       set({ sales });
@@ -350,71 +312,63 @@ export const useSaleStore = create<SaleState>((set, get) => ({
       const sale = get().sales.find(s => s.id === id);
       if (!sale) return false;
 
-      console.log(`[Sale Delete] Starting deletion of sale ${id} with ${sale.items.length} items`);
+      const restoreImeiAvailabilityForItem = async (item: any) => {
+        const imeis: string[] = [];
+        if (item.imei1) imeis.push(item.imei1);
+        if (item.imei2) imeis.push(item.imei2);
+        if (item.imei) {
+          if (item.imei.includes('||')) {
+            imeis.push(...item.imei.split('||').map((i: string) => i.trim()).filter(Boolean));
+          } else if (!item.imei1 && !item.imei2) {
+            imeis.push(item.imei);
+          }
+        }
 
-      // STEP 1: Process each sale item - mark IMEIs as available and restore product stock
+        for (const imei of Array.from(new Set(imeis))) {
+          if (imei) {
+            await useImeiStore.getState().markImeiAvailable(imei);
+          }
+        }
+      };
+
       for (const item of sale.items) {
-        try {
-          if (item.imei) {
-            // If item has IMEI, mark it as available
-            const marked = await useImeiStore.getState().markImeiAvailable(item.imei);
-            if (marked) {
-              console.log(`[Sale Delete] Marked IMEI ${item.imei} as available`);
-            }
-            continue;
-          }
+        await restoreImeiAvailabilityForItem(item);
 
-          // Otherwise, restore product stock quantity
-          const { data: product, error: prodError } = await supabase
-            .from('products')
-            .select('stock_quantity')
-            .eq('id', item.productId)
-            .single();
+        if (item.imei || item.imei1 || item.imei2) {
+          continue;
+        }
 
-          if (prodError) throw prodError;
-          if (product) {
-            const newQty = Math.max(0, (product.stock_quantity || 0) + item.quantity);
-            await supabase.from('products').update({ stock_quantity: newQty }).eq('id', item.productId);
-            console.log(`[Sale Delete] Restored ${item.quantity} units to product ${item.productId} (new qty: ${newQty})`);
-          }
-        } catch (itemErr) {
-          console.warn(`[Sale Delete] Warning processing item for product ${item.productId}:`, itemErr);
-          // Continue processing other items even if one fails
+        const { data: product, error: prodError } = await supabase
+          .from('products')
+          .select('stock_quantity')
+          .eq('id', item.productId)
+          .single();
+
+        if (prodError) throw prodError;
+        if (product) {
+          const newQty = Math.max(0, (product.stock_quantity || 0) + item.quantity);
+          await supabase.from('products').update({ stock_quantity: newQty }).eq('id', item.productId);
         }
       }
 
-      // STEP 2: Delete all sale_items from Supabase
-      console.log(`[Sale Delete] Deleting ${sale.items.length} sale items from database`);
       const { error: deleteItemsError } = await supabase
         .from('sale_items')
         .delete()
         .eq('sale_id', id);
 
-      if (deleteItemsError) {
-        console.error('[Sale Delete] Error deleting sale_items:', deleteItemsError);
-        throw deleteItemsError;
-      }
+      if (deleteItemsError) throw deleteItemsError;
 
-      // STEP 3: Delete the sale itself from Supabase
-      console.log(`[Sale Delete] Deleting sale record ${id}`);
       const { error: deleteSaleError } = await supabase
         .from('sales')
         .delete()
         .eq('id', id);
 
-      if (deleteSaleError) {
-        console.error('[Sale Delete] Error deleting sale:', deleteSaleError);
-        throw deleteSaleError;
-      }
+      if (deleteSaleError) throw deleteSaleError;
 
-      // STEP 4: Update local state
-      const updatedSales = get().sales.filter(s => s.id !== id);
-      set({ sales: updatedSales });
-      console.log(`[Sale Delete] Successfully deleted sale ${id} and all related records`);
-      
+      set({ sales: get().sales.filter(s => s.id !== id) });
       return true;
     } catch (err) {
-      console.error('[Sale Delete] Error deleting sale:', err);
+      console.error('Error deleting sale:', err);
       return false;
     }
   },

@@ -24,6 +24,7 @@ import {
 import { cn } from '@/lib/utils';
 import type { Product, CartItem, Sale } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
+import InvoiceEditorModal from '@/components/shared/InvoiceEditorModal';
 
 export default function Pos() {
   const { products, categories, loadData: loadProducts } = useProductStore();
@@ -58,6 +59,7 @@ export default function Pos() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>();
+  const [editorOpen, setEditorOpen] = useState(false);
   const [selectedCustomerName, setSelectedCustomerName] = useState('Walk-in Customer');
   const [selectedCustomerPhone, setSelectedCustomerPhone] = useState('');
   const [selectedCustomerAddress, setSelectedCustomerAddress] = useState('');
@@ -118,16 +120,21 @@ export default function Pos() {
 
   const handleAddToCart = (product: Product, imei?: string) => {
     if (imei) {
-      addItem(product, imei);
-      toast.success('Added to cart', `${product.name} (IMEI: ${imei})`);
-    } else {
-      const available = getAvailableByProduct(product.id);
-      if (available.length === 0) {
-        toast.error('Out of stock', `${product.name} has no available IMEIs`);
-        return;
+      const added = addItem(product, imei);
+      if (added) {
+        toast.success('Added to cart', `${product.name} (IMEI: ${imei})`);
+      } else {
+        toast.error('This device is already in the cart.');
       }
-      setImeiSelectProduct(product);
+      return;
     }
+
+    const available = getAvailableByProduct(product.id);
+    if (available.length === 0) {
+      toast.error('Out of stock', `${product.name} has no available IMEIs`);
+      return;
+    }
+    setImeiSelectProduct(product);
   };
 
   const findProductByCode = (code: string): { product: Product; imei?: string; error?: string } | undefined => {
@@ -276,6 +283,7 @@ export default function Pos() {
     setPaidAmount('');
     setCheckoutNotes('');
     setDiscountInput('');
+    setEditorOpen(false);
   };
 
   const changeDue = (parseFloat(paidAmount) || 0) - grandTotal();
@@ -566,8 +574,11 @@ export default function Pos() {
       </div>
 
       {/* Checkout Dialog */}
-      <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
-        {/* ... (dialog contents are kept) */}
+      <Dialog open={checkoutOpen} onOpenChange={(open) => {
+        if (!open && !editorOpen) {
+          setCheckoutOpen(false);
+        }
+      }}>
         <DialogContent className="sm:max-w-[480px]">
           {!saleComplete ? (
             <>
@@ -664,14 +675,14 @@ export default function Pos() {
               {completedSale && (
                 <div className="hidden">
                   <InvoiceReceipt
-                     id="receipt"
-                     sale={completedSale}
-                     shopSettings={shopSettings}
-                     receiptSettings={receiptSettings}
+                    id="receipt"
+                    sale={completedSale}
+                    shopSettings={shopSettings}
+                    receiptSettings={receiptSettings}
                   />
                 </div>
               )}
-              <div className="flex gap-2 justify-center mt-6">
+              <div className="flex gap-2 justify-center mt-6 flex-wrap">
                 <Button
                   type="button"
                   variant="outline"
@@ -681,7 +692,27 @@ export default function Pos() {
                   <Printer className="w-4 h-4 mr-2" />
                   Print Invoice
                 </Button>
-                <Button type="button" onClick={handleNewSale} className="bg-orange-500 hover:bg-orange-600">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    // Close checkout dialog first
+                    setCheckoutOpen(false);
+                    // Small delay to allow dialog to close
+                    setTimeout(() => {
+                      setEditorOpen(true);
+                    }, 150);
+                  }}
+                  disabled={!completedSale}
+                >
+                  <Printer className="w-4 h-4 mr-2" />
+                  Edit & Print
+                </Button>
+                <Button 
+                  type="button" 
+                  onClick={handleNewSale} 
+                  className="bg-orange-500 hover:bg-orange-600"
+                >
                   New Sale
                 </Button>
               </div>
@@ -689,6 +720,23 @@ export default function Pos() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Invoice Editor Modal - Rendered outside Dialog */}
+      {completedSale && (
+        <InvoiceEditorModal
+          open={editorOpen}
+          onClose={() => {
+            setEditorOpen(false);
+            // Reopen checkout dialog after editor closes
+            setTimeout(() => {
+              setCheckoutOpen(true);
+            }, 100);
+          }}
+          sale={completedSale}
+          shopSettings={shopSettings}
+          receiptSettings={receiptSettings}
+        />
+      )}
 
       {/* IMEI Selection Dialog */}
       <Dialog open={!!imeiSelectProduct} onOpenChange={(open) => { if (!open) setImeiSelectProduct(null); }}>

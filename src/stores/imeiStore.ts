@@ -18,6 +18,7 @@ interface ImeiState {
   markImeiSold: (imei: string) => Promise<boolean>;
   markImeiAvailable: (imei: string) => Promise<boolean>;
   deleteImeisByProduct: (productId: string) => ProductIMEI[];
+  clearAllImeis: () => void;
   restoreImeis: (imeis: ProductIMEI[]) => void;
 }
 
@@ -58,17 +59,13 @@ export const useImeiStore = create<ImeiState>((set, get) => ({
   addImei: async (productId, imei1, imei2, color, ram, storage) => {
     const normalized1 = imei1.trim();
     const normalized2 = imei2.trim();
-
-    // Only require one IMEI number, but allow both if provided.
-    if (!normalized1 && !normalized2) return null;
-
-    if (normalized1 && !get().isImeiUnique(normalized1)) return null;
-    if (normalized2 && !get().isImeiUnique(normalized2)) return null;
+    if (!normalized1 || !normalized2) return null;
+    if (!get().isImeiUnique(normalized1) || !get().isImeiUnique(normalized2)) return null;
 
     const newImei: ProductIMEI = {
       id: generateId(),
       productId,
-      imei: normalized1 || normalized2,
+      imei: normalized1,
       imei1: normalized1,
       imei2: normalized2,
       status: 'available',
@@ -196,6 +193,11 @@ export const useImeiStore = create<ImeiState>((set, get) => ({
     set({ imeis: remaining });
     writeLocalStorage(remaining);
     return related;
+  },
+
+  clearAllImeis: () => {
+    set({ imeis: [] });
+    writeLocalStorage([]);
   },
 
   restoreImeis: (restored) => {

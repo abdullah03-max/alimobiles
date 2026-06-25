@@ -6,6 +6,8 @@ import { useSaleStore } from '@/stores/saleStore';
 import { useCustomerStore } from '@/stores/customerStore';
 import { useSupplierStore } from '@/stores/supplierStore';
 import { useExpenseStore } from '@/stores/expenseStore';
+import { useImeiStore } from '@/stores/imeiStore';
+import { useCartStore } from '@/stores/cartStore';
 import { useToast } from '@/hooks/useToast';
 import { supabase } from '@/lib/supabaseClient';
 import PageHeader from '@/components/shared/PageHeader';
@@ -16,10 +18,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { cn, downloadCSV } from '@/lib/utils';
-import { clearCacheAndReload, getCacheSizeFormatted } from '@/lib/cacheManager';
 import {
   Store, Receipt, Users, Database, Info,
-  ShoppingBag, Printer, Landmark, CreditCard, Wallet, Smartphone, AlertTriangle, Banknote, Trash2,
+  ShoppingBag, Printer, Landmark, CreditCard, Wallet, Smartphone, AlertTriangle, Banknote,
 } from 'lucide-react';
 
 const settingMenus = [
@@ -69,6 +70,8 @@ export default function Settings() {
   const { customers, loadData: loadCustomers } = useCustomerStore();
   const { suppliers, loadData: loadSuppliers } = useSupplierStore();
   const { expenses, loadData: loadExpenses } = useExpenseStore();
+  const { loadData: loadImeis, clearAllImeis } = useImeiStore();
+  const { clearCart } = useCartStore();
   const toast = useToast();
   const [activeMenu, setActiveMenu] = useState('shop');
   const [isLoading, setIsLoading] = useState(true);
@@ -80,14 +83,11 @@ export default function Settings() {
   const [deleting, setDeleting] = useState(false);
   const [deleteSteps, setDeleteSteps] = useState<string[]>([]);
   const [currentStep, setCurrentStep] = useState<number | null>(null);
-  const [cacheConfirmOpen, setCacheConfirmOpen] = useState(false);
+  const [clearCacheOpen, setClearCacheOpen] = useState(false);
   const [clearingCache, setClearingCache] = useState(false);
-  const [cacheSize, setCacheSize] = useState<string>('');
 
   useEffect(() => {
     loadSettings().finally(() => setIsLoading(false));
-    // Update cache size on mount
-    setCacheSize(getCacheSizeFormatted());
   }, [loadSettings]);
 
   const handleSavePaymentMethods = async () => {
@@ -201,6 +201,60 @@ export default function Settings() {
     }
   };
 
+  const handleClearCache = async () => {
+    if (clearingCache) return;
+    setClearingCache(true);
+    try {
+      if (typeof window !== 'undefined') {
+        const keys = [
+          'pos_product_imeis',
+          'pos_products',
+          'pos_categories',
+          'pos_brands',
+          'pos_units',
+          'pos_suppliers',
+          'pos_customers',
+          'pos_settings',
+          'pos_receipt_settings',
+          'pos_tax_settings',
+          'pos_payment_methods',
+          'pos_sales',
+          'pos_purchases',
+          'pos_returns',
+          'pos_expenses',
+          'pos_session',
+          'pos_session_time',
+        ];
+        keys.forEach(key => window.localStorage.removeItem(key));
+        try {
+          window.sessionStorage.clear();
+        } catch {
+          // ignore session storage failures
+        }
+      }
+
+      clearAllImeis();
+      clearCart();
+      await Promise.all([
+        loadProducts(),
+        loadSales(),
+        loadCustomers(),
+        loadSuppliers(),
+        loadExpenses(),
+        loadSettings(),
+        loadImeis(),
+      ]);
+
+      toast.success('Cache cleared successfully');
+    } catch (err) {
+      console.error('Clear cache failed:', err);
+      toast.error('Failed to clear cache. Please try again.');
+    } finally {
+      setClearingCache(false);
+      setClearCacheOpen(false);
+    }
+  };
+
   const handleResetDatabase = async () => {
     // This function is deprecated in favor of the enhanced Delete All Data flow
     setResetConfirmOpen(false);
@@ -311,18 +365,6 @@ export default function Settings() {
       setConfirmChecked(false);
       setConfirmText('');
       setCurrentStep(null);
-    }
-  };
-
-  const handleClearCache = async () => {
-    setClearingCache(true);
-    try {
-      await new Promise(resolve => setTimeout(resolve, 500)); // Small delay for UI feedback
-      clearCacheAndReload();
-    } catch (err) {
-      console.error('Error clearing cache:', err);
-      toast.error('Failed to clear cache', 'See console for details');
-      setClearingCache(false);
     }
   };
 
@@ -458,6 +500,18 @@ export default function Settings() {
                 <p className="text-xs text-red-600 mt-1">This will permanently remove products, inventory, sales, purchases, customers, suppliers, expenses, categories, brands, IMEIs and related business records. User accounts and system configuration will be preserved.</p>
               </div>
 
+              <div className="rounded-lg border border-yellow-100 bg-yellow-50 p-4 mb-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-sm text-orange-700">Clear Client Cache</p>
+                    <p className="text-xs text-orange-600">Remove temporary browser state without deleting database records.</p>
+                  </div>
+                  <Button size="sm" className="bg-orange-500 hover:bg-orange-600" onClick={() => setClearCacheOpen(true)}>
+                    {clearingCache ? 'Clearing...' : 'Clear Cache'}
+                  </Button>
+                </div>
+              </div>
+
               {user?.role !== 'admin' ? (
                 <div className="p-3 border rounded bg-red-50 text-sm text-red-600">Only administrators can perform this action.</div>
               ) : (
@@ -493,35 +547,6 @@ export default function Settings() {
                   )}
                 </div>
               )}
-
-              {/* Clear Cache Section */}
-              <div className="border-t border-red-100 pt-4 mt-6">
-                <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
-                  <p className="text-sm font-medium text-yellow-700">Clear Application Cache</p>
-                  <p className="text-xs text-yellow-600 mt-1">Clears browser storage, temporary data, and cache. This does NOT delete database records. Use this if you experience issues with stale data or IMEI conflicts.</p>
-                </div>
-
-                {user?.role !== 'admin' ? (
-                  <div className="p-3 border rounded bg-red-50 text-sm text-red-600 mt-3">Only administrators can perform this action.</div>
-                ) : (
-                  <div className="space-y-3 mt-3">
-                    <p className="text-xs text-gray-600">
-                      Current cache size: <span className="font-semibold">{cacheSize}</span>
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        className="bg-yellow-600 hover:bg-yellow-700 gap-2"
-                        onClick={() => setCacheConfirmOpen(true)}
-                        disabled={clearingCache}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        {clearingCache ? 'Clearing Cache...' : 'Clear Cache'}
-                      </Button>
-                      <p className="text-xs text-gray-500">Application will reload after clearing</p>
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
           </div>
         )}
@@ -554,11 +579,11 @@ export default function Settings() {
         message={"This will permanently delete ALL business data (products, sales, purchases, IMEIs, customers, suppliers, expenses, categories, brands). This action is irreversible. Type DELETE ALL DATA and confirm to proceed."}
       />
       <DeleteConfirmModal
-        open={cacheConfirmOpen}
-        onClose={() => setCacheConfirmOpen(false)}
+        open={clearCacheOpen}
+        onClose={() => setClearCacheOpen(false)}
         onConfirm={handleClearCache}
-        itemName="Clear Application Cache"
-        message={"This will clear all browser cache, localStorage, and temporary data. Your database records will NOT be deleted. The application will reload after clearing. Continue?"}
+        itemName="Clear Cache"
+        message="This will clear temporary client-side data (localStorage/sessionStorage) and reload application state. It will not delete any database records."
       />
     </div>
   );
