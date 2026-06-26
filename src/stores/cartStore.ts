@@ -20,6 +20,7 @@ interface CartState {
   setNotes: (notes: string) => void;
 
   subtotal: () => number;
+  discountPercent: () => number;
   discountAmount: () => number;
   taxAmount: () => number;
   grandTotal: () => number;
@@ -181,7 +182,14 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
 
   setDiscount: (value: number, type: 'percent' | 'amount') => {
-    set({ discount: value, discountType: type });
+    const sub = get().subtotal();
+    if (type === 'percent') {
+      const percent = Number.isFinite(value) ? Math.max(0, Math.min(value, 100)) : 0;
+      set({ discount: percent, discountType: 'percent' });
+    } else {
+      const amount = Number.isFinite(value) ? Math.max(0, Math.min(value, sub)) : 0;
+      set({ discount: amount, discountType: 'amount' });
+    }
   },
 
   setCustomer: (id: string | undefined, name: string) => {
@@ -194,11 +202,19 @@ export const useCartStore = create<CartState>((set, get) => ({
 
   subtotal: () => get().items.reduce((sum, i) => sum + i.total, 0),
 
+  discountPercent: () => {
+    const { discount, discountType } = get();
+    const sub = get().subtotal();
+    if (sub <= 0) return 0;
+    if (discountType === 'percent') return discount;
+    return Number(((discount / sub) * 100).toFixed(2));
+  },
+
   discountAmount: () => {
     const { discount, discountType } = get();
     const sub = get().subtotal();
     if (discountType === 'percent') return Math.round(sub * (discount / 100));
-    return discount;
+    return Math.min(discount, sub);
   },
 
   taxAmount: () => 0,

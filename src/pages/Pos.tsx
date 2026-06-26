@@ -44,7 +44,9 @@ export default function Pos() {
   const setDiscount = useCartStore(s => s.setDiscount);
   const setCustomer = useCartStore(s => s.setCustomer);
   const subtotal = useCartStore(s => s.subtotal);
-  const discountAmount = useCartStore(s => s.discountAmount);
+  const discountPercentValue = useCartStore(s => s.discountPercent());
+  const discountAmountValue = useCartStore(s => s.discountAmount());
+  const discountType = useCartStore(s => s.discountType);
   const grandTotal = useCartStore(s => s.grandTotal);
   const itemCount = useCartStore(s => s.itemCount);
 
@@ -63,7 +65,8 @@ export default function Pos() {
   const [selectedCustomerName, setSelectedCustomerName] = useState('Walk-in Customer');
   const [selectedCustomerPhone, setSelectedCustomerPhone] = useState('');
   const [selectedCustomerAddress, setSelectedCustomerAddress] = useState('');
-  const [discountInput, setDiscountInput] = useState('');
+  const [discountPercentInput, setDiscountPercentInput] = useState('');
+  const [discountAmountInput, setDiscountAmountInput] = useState('');
   const [imeiSelectProduct, setImeiSelectProduct] = useState<Product | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -250,7 +253,7 @@ export default function Pos() {
             ptaStatus: i.ptaStatus,
           })),
           subtotal: subtotal(),
-          discount: discountAmount(),
+          discount: discountAmountValue,
           tax: 0,
           grandTotal: total,
           paidAmount: paid,
@@ -282,11 +285,18 @@ export default function Pos() {
     setCompletedSale(null);
     setPaidAmount('');
     setCheckoutNotes('');
-    setDiscountInput('');
+    setDiscountPercentInput('');
+    setDiscountAmountInput('');
     setEditorOpen(false);
   };
 
   const changeDue = (parseFloat(paidAmount) || 0) - grandTotal();
+
+  useEffect(() => {
+    setDiscountPercentInput(discountPercentValue > 0 ? String(discountPercentValue) : '');
+    setDiscountAmountInput(discountAmountValue > 0 ? String(discountAmountValue) : '');
+  }, [discountType, discountPercentValue, discountAmountValue]);
+
   const activeCategories = categories.filter(c => c.status === 'active' && c.showInPos);
 
   const filteredCustomers = useMemo(() => {
@@ -528,19 +538,45 @@ export default function Pos() {
         {/* Cart Summary */}
         <div className="border-t border-gray-200 p-4 bg-white">
           {/* Discount */}
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-sm text-gray-600">Discount</span>
-            <Input
-              value={discountInput}
-              onChange={(e) => {
-                setDiscountInput(e.target.value);
-                const val = parseFloat(e.target.value);
-                if (!isNaN(val)) setDiscount(val, 'percent');
-                else setDiscount(0, 'percent');
-              }}
-              placeholder="%"
-              className="w-16 h-8 text-sm ml-auto"
-            />
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">Discount %</span>
+              <Input
+                value={discountPercentInput}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setDiscountPercentInput(value);
+
+                  const amount = parseFloat(value);
+                  if (!isNaN(amount)) {
+                    setDiscount(amount, 'percent');
+                  } else {
+                    setDiscount(0, 'percent');
+                  }
+                }}
+                placeholder="%"
+                className="w-full h-8 text-sm"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">Discount ₹</span>
+              <Input
+                value={discountAmountInput}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setDiscountAmountInput(value);
+
+                  const amount = parseFloat(value);
+                  if (!isNaN(amount)) {
+                    setDiscount(amount, 'amount');
+                  } else {
+                    setDiscount(0, 'amount');
+                  }
+                }}
+                placeholder="0"
+                className="w-full h-8 text-sm"
+              />
+            </div>
           </div>
 
           <div className="space-y-1.5 text-sm">
@@ -548,10 +584,10 @@ export default function Pos() {
               <span className="text-gray-600">Subtotal</span>
               <span className="font-medium">{formatCurrency(subtotal())}</span>
             </div>
-            {discountAmount() > 0 && (
+            {discountAmountValue > 0 && (
               <div className="flex justify-between text-orange-500">
                 <span>Discount</span>
-                <span>-{formatCurrency(discountAmount())}</span>
+                <span>-{formatCurrency(discountAmountValue)}</span>
               </div>
             )}
             <div className="flex justify-between pt-2 border-t border-gray-100">
