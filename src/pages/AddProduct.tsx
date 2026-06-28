@@ -198,11 +198,6 @@ export default function AddProduct() {
       return;
     }
 
-    if (variantsList.length === 0) {
-      toast.error('Variants Required', 'Please define at least one available RAM + Storage variant combination.');
-      return;
-    }
-    
     const existing = brands.find(b => b.name.toLowerCase() === customBrand.trim().toLowerCase());
     if (existing) {
       brandIdToUse = existing.id;
@@ -228,8 +223,8 @@ export default function AddProduct() {
       ...form,
       brandId: brandIdToUse,
       description: descriptionPayload,
-      storage: variantsList.map(v => v.storage).join(', '),
-      ram: variantsList.map(v => v.ram).join(', '),
+      storage: variantsList.length > 0 ? variantsList.map(v => v.storage).join(', ') : form.storage,
+      ram: variantsList.length > 0 ? variantsList.map(v => v.ram).join(', ') : form.ram,
       stockQuantity: isEdit ? form.stockQuantity : 0, 
     };
 
@@ -417,7 +412,8 @@ export default function AddProduct() {
 
             {/* Predefined RAM & Storage Variants */}
             <div className="space-y-2 border-t pt-4">
-              <Label className="font-semibold text-sm">Predefined Variants (RAM & Storage Combinations) *</Label>
+              <Label className="font-semibold text-sm">Predefined Variants (RAM & Storage Combinations)</Label>
+              <p className="text-xs text-gray-500">Optional. Leave blank for a non-variant product.</p>
               <div className="flex gap-2 mt-1">
                 <div className="flex-1">
                   <Label className="text-[10px] text-gray-500 uppercase">RAM</Label>
@@ -452,7 +448,7 @@ export default function AddProduct() {
                     </span>
                   ))}
                   {variantsList.length === 0 && (
-                    <span className="text-xs text-gray-400 italic">No variants defined yet. Add at least one combination above.</span>
+                    <span className="text-xs text-gray-400 italic">No variants defined yet. Leave this blank for a non-variant product.</span>
                   )}
                 </div>
               </div>

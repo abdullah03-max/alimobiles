@@ -498,7 +498,7 @@ export default function InvoiceReceipt({
         </div>
 
         {/* IMEI Barcode Section */}
-        {!receiptSettings.hideBarcodes && !hideBarcodes && (() => {
+        {!hideBarcodes && (() => {
           const extractImeis = (item: any) => {
             let imei1 = null;
             let imei2 = null;

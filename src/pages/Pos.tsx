@@ -59,7 +59,7 @@ export default function Pos() {
   const [paidAmount, setPaidAmount] = useState('');
   const [checkoutNotes, setCheckoutNotes] = useState('');
   const [saleComplete, setSaleComplete] = useState(false);
-  const [completedSale, setCompletedSale] = useState<Sale | null>(null);
+  const [completedSale, setCompletedSale] = useState<(Sale & { customerWhatsApp?: string }) | null>(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>();
