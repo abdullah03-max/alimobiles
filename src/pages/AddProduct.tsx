@@ -45,8 +45,8 @@ export default function AddProduct() {
   
   // Predefined variants state
   const [variantsList, setVariantsList] = useState<{ ram: string; storage: string }[]>([]);
-  const [selectedRam, setSelectedRam] = useState('4GB');
-  const [selectedStorage, setSelectedStorage] = useState('128GB');
+  const [selectedRam, setSelectedRam] = useState('');
+  const [selectedStorage, setSelectedStorage] = useState('');
 
   // Colors multi-select states
   const [colorsList, setColorsList] = useState<string[]>([]);
@@ -422,13 +422,15 @@ export default function AddProduct() {
                 <div className="flex-1">
                   <Label className="text-[10px] text-gray-500 uppercase">RAM</Label>
                   <select value={selectedRam} onChange={e => setSelectedRam(e.target.value)} className="w-full h-9 px-3 border rounded-md text-sm bg-white mt-1">
-                    {['4GB', '6GB', '8GB', '12GB', '16GB', '24GB'].map(r => <option key={r} value={r}>{r}</option>)}
+                    <option value="">— None (Button Mobile) —</option>
+                    {['2GB', '4GB', '6GB', '8GB', '12GB', '16GB', '24GB'].map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                 </div>
                 <div className="flex-1">
                   <Label className="text-[10px] text-gray-500 uppercase">Storage</Label>
                   <select value={selectedStorage} onChange={e => setSelectedStorage(e.target.value)} className="w-full h-9 px-3 border rounded-md text-sm bg-white mt-1">
-                    {['64GB', '128GB', '256GB', '512GB', '1TB'].map(s => <option key={s} value={s}>{s}</option>)}
+                    <option value="">— None (Button Mobile) —</option>
+                    {['32GB', '64GB', '128GB', '256GB', '512GB', '1TB'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 <div className="flex items-end">
