@@ -415,6 +415,74 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
                   </section>
 
                   <section>
+                    <h2 className="text-lg font-semibold text-gray-900">Payment Summary</h2>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
+                        <Label className="text-blue-900 font-semibold">Grand Total</Label>
+                        <Input 
+                          type="number" 
+                          value={String(editedSale.grandTotal)} 
+                          onChange={e => setEditedSale(prev => ({
+                            ...prev,
+                            grandTotal: Number(e.target.value) || 0
+                          }))}
+                          className="mt-1 font-semibold text-base"
+                        />
+                      </div>
+                      <div className="rounded-lg bg-green-50 border border-green-200 p-3">
+                        <Label className="text-green-900 font-semibold">Received / Paid</Label>
+                        <Input 
+                          type="number" 
+                          value={String(editedSale.paidAmount)} 
+                          onChange={e => setEditedSale(prev => ({
+                            ...prev,
+                            paidAmount: Number(e.target.value) || 0,
+                            changeDue: Math.max(0, (Number(e.target.value) || 0) - prev.grandTotal)
+                          }))}
+                          className="mt-1 font-semibold text-base"
+                        />
+                      </div>
+                      <div className="rounded-lg bg-orange-50 border border-orange-200 p-3">
+                        <Label className="text-orange-900 font-semibold">Pending / Due</Label>
+                        <Input 
+                          type="number" 
+                          value={String(Math.max(0, editedSale.grandTotal - editedSale.paidAmount))} 
+                          readOnly
+                          className="mt-1 font-semibold text-base bg-gray-100"
+                        />
+                      </div>
+                      <div className="rounded-lg bg-purple-50 border border-purple-200 p-3">
+                        <Label className="text-purple-900 font-semibold">Change Due</Label>
+                        <Input 
+                          type="number" 
+                          value={String(editedSale.changeDue)} 
+                          onChange={e => setEditedSale(prev => ({
+                            ...prev,
+                            changeDue: Number(e.target.value) || 0
+                          }))}
+                          className="mt-1 font-semibold text-base"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <Label>Payment Status</Label>
+                        <select 
+                          value={editedSale.status} 
+                          onChange={e => setEditedSale(prev => ({
+                            ...prev,
+                            status: e.target.value as any
+                          }))}
+                          className="w-full h-9 px-3 border rounded-md text-sm bg-white mt-1"
+                        >
+                          <option value="paid">Paid</option>
+                          <option value="pending">Pending</option>
+                          <option value="partial">Partial</option>
+                          <option value="cancelled">Cancelled</option>
+                        </select>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section>
                     <Label>Notes</Label>
                     <Textarea 
                       value={editedSale.notes || ''} 

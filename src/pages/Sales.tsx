@@ -5,13 +5,14 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import PageHeader from '@/components/shared/PageHeader';
 import StatusBadge from '@/components/shared/StatusBadge';
 import InvoiceReceipt from '@/components/shared/InvoiceReceipt';
+import InvoiceEditorModal from '@/components/shared/InvoiceEditorModal';
 import DeleteConfirmModal from '@/components/shared/DeleteConfirmModal';
 import { useToast } from '@/hooks/useToast';
 import { usePrint } from '@/hooks/usePrint';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Search, ShoppingCart, Plus, Printer, Eye, Trash2 } from 'lucide-react';
+import { Search, ShoppingCart, Plus, Printer, Eye, Edit, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Sale } from '@/types';
 
@@ -23,6 +24,7 @@ export default function Sales() {
   const { printReceipt } = usePrint();
   const [search, setSearch] = useState('');
   const [viewSale, setViewSale] = useState<Sale | null>(null);
+  const [editSale, setEditSale] = useState<Sale | null>(null);
   const [deleteSaleId, setDeleteSaleId] = useState<string | null>(null);
 
   useEffect(() => { 
@@ -100,6 +102,7 @@ export default function Sales() {
               <td className="px-4 py-3 text-center">
                 <div className="inline-flex items-center justify-center gap-1">
                   <button onClick={() => setViewSale(s)} className="p-1.5 rounded hover:bg-gray-100 text-gray-500" title="View invoice"><Eye className="w-4 h-4" /></button>
+                  <button onClick={() => setEditSale(s)} className="p-1.5 rounded hover:bg-gray-100 text-blue-600" title="Edit invoice"><Edit className="w-4 h-4" /></button>
                   <button onClick={() => setDeleteSaleId(s.id)} className="p-1.5 rounded hover:bg-gray-100 text-red-500" title="Delete sale"><Trash2 className="w-4 h-4" /></button>
                 </div>
               </td>
@@ -155,6 +158,16 @@ export default function Sales() {
         itemName="Sale"
         message="Deleting a sale will remove it permanently and restore stock quantities."
       />
+
+      {editSale && (
+        <InvoiceEditorModal
+          open={!!editSale}
+          onClose={() => setEditSale(null)}
+          sale={editSale}
+          shopSettings={shopSettings}
+          receiptSettings={receiptSettings}
+        />
+      )}
     </div>
   );
 }
