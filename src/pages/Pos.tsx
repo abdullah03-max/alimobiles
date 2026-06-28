@@ -19,12 +19,14 @@ import {
 import StatusBadge from '@/components/shared/StatusBadge';
 import {
   Search, Barcode, Minus, Plus, Trash2, X, ShoppingCart,
-  Banknote, CreditCard, Landmark, Wallet, User, Printer, CheckCircle2, Package, Smartphone, ShoppingBag,
+  Banknote, CreditCard, Landmark, Wallet, User, Printer, CheckCircle2, Package, Smartphone, ShoppingBag, Camera,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Product, CartItem, Sale } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
 import InvoiceEditorModal from '@/components/shared/InvoiceEditorModal';
+import html2canvas from 'html2canvas';
+import { supabase } from '@/lib/supabaseClient';
 
 export default function Pos() {
   const { products, categories, loadData: loadProducts } = useProductStore();
@@ -65,6 +67,7 @@ export default function Pos() {
   const [selectedCustomerName, setSelectedCustomerName] = useState('Walk-in Customer');
   const [selectedCustomerPhone, setSelectedCustomerPhone] = useState('');
   const [selectedCustomerAddress, setSelectedCustomerAddress] = useState('');
+  const [selectedCustomerWhatsApp, setSelectedCustomerWhatsApp] = useState('');
   const [discountPercentInput, setDiscountPercentInput] = useState('');
   const [discountAmountInput, setDiscountAmountInput] = useState('');
   const [imeiSelectProduct, setImeiSelectProduct] = useState<Product | null>(null);
@@ -267,7 +270,9 @@ export default function Pos() {
         return;
       }
 
-      setCompletedSale(sale);
+      // Attach the optionally entered WhatsApp number to the completed sale state
+      const saleWithWhatsApp = { ...sale, customerWhatsApp: selectedCustomerWhatsApp } as Sale & { customerWhatsApp?: string };
+      setCompletedSale(saleWithWhatsApp);
       setSaleComplete(true);
       toast.success('Sale completed', sale.invoiceNumber);
     } catch (err) {
@@ -275,6 +280,164 @@ export default function Pos() {
       toast.error('Sale not completed', 'An unexpected error occurred while completing the sale.');
     } finally {
       setCheckoutLoading(false);
+    }
+  };
+
+  const copySharedReceiptToClipboard = async () => {
+    const receiptEl = document.getElementById('receipt');
+    if (!receiptEl) {
+      throw new Error('Receipt not available');
+    }
+
+    const prevDisplay = (receiptEl as HTMLElement).style.display;
+    (receiptEl as HTMLElement).style.display = 'block';
+    const canvas = await html2canvas(receiptEl as HTMLElement, { scale: 2 });
+    (receiptEl as HTMLElement).style.display = prevDisplay;
+
+    const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) throw new Error('Unable to create receipt image');
+
+    const nav: any = navigator;
+    if (nav.clipboard && typeof (window as any).ClipboardItem === 'function') {
+      const item = new (window as any).ClipboardItem({ 'image/png': blob });
+      await nav.clipboard.write([item]);
+      return true;
+    }
+
+    return false;
+  };
+
+  const shareViaWhatsApp = async (sale: Sale & { customerWhatsApp?: string }) => {
+    const raw = sale.customerWhatsApp || '';
+    const digits = raw.replace(/\D/g, '');
+    if (!digits) {
+      toast.error('Invalid WhatsApp number', 'Please enter a valid phone number to share via WhatsApp.');
+      return;
+    }
+
+    const itemsText = sale.items.map(i => `${i.productName} x${i.quantity} - ${formatCurrency(i.total)}`).join('%0A');
+    const dateText = new Date(sale.createdAt).toLocaleString();
+    let message = `Invoice: ${sale.invoiceNumber}%0ADate: ${dateText}%0A%0AItems:%0A${itemsText}%0A%0ATotal: ${formatCurrency(sale.grandTotal)}%0A%0AThank you for your purchase!`;
+
+    try {
+      const copied = await copySharedReceiptToClipboard();
+      if (copied) {
+        toast.success('Invoice copied', 'Open WhatsApp chat and paste (Ctrl+V)');
+      } else {
+        toast.info('Clipboard not supported', 'WhatsApp will open and you can paste the copied receipt manually.');
+      }
+    } catch (err) {
+      console.warn('Receipt copy failed', err);
+      toast.info('Copy failed', 'WhatsApp will still open so you can share the invoice text.');
+    }
+
+    // Preserve current share behavior with link fallback
+    try {
+      const receiptEl = document.getElementById('receipt');
+      if (receiptEl) {
+        const prevDisplay = receiptEl.style.display;
+        receiptEl.style.display = 'block';
+
+        const canvas = await html2canvas(receiptEl as HTMLElement, { scale: 2 });
+        const pngBlob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+        const fileName = `receipts/${sale.invoiceNumber || Date.now()}.png`;
+        if (pngBlob) {
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('receipts')
+            .upload(fileName, pngBlob, { contentType: 'image/png', upsert: true });
+
+          if (!uploadError && uploadData) {
+            const { data: publicData } = supabase.storage.from('receipts').getPublicUrl(fileName);
+            const publicUrl = publicData?.publicUrl;
+            if (publicUrl) {
+              message += `%0A%0AReceipt: ${encodeURIComponent(publicUrl)}`;
+            }
+          }
+        }
+
+        receiptEl.style.display = prevDisplay;
+      }
+    } catch (err) {
+      console.error('PDF generation/upload failed:', err);
+    }
+
+    const url = `https://wa.me/${digits}?text=${message}`;
+    window.open(url, '_blank');
+  };
+
+  const captureReceiptImage = async (sale: Sale & { customerWhatsApp?: string }) => {
+    try {
+      const receiptEl = document.getElementById('receipt');
+      if (!receiptEl) {
+        toast.error('Receipt not available', 'Cannot find receipt element');
+        return;
+      }
+
+      const prevDisplay = (receiptEl as HTMLElement).style.display;
+      (receiptEl as HTMLElement).style.display = 'block';
+
+      const canvas = await html2canvas(receiptEl as HTMLElement, { scale: 2 });
+      (receiptEl as HTMLElement).style.display = prevDisplay;
+
+      // Convert captured canvas into an A4-sized canvas (150 DPI) so pasted image matches A4 size
+      const srcCanvas = canvas;
+      const srcWidth = srcCanvas.width;
+      const srcHeight = srcCanvas.height;
+
+      const dpi = 150; // target DPI for A4 output
+      const mmToInch = (mm: number) => mm / 25.4;
+      const a4Width = Math.round(mmToInch(210) * dpi);
+      const a4Height = Math.round(mmToInch(297) * dpi);
+
+      const a4Canvas = document.createElement('canvas');
+      a4Canvas.width = a4Width;
+      a4Canvas.height = a4Height;
+      const a4Ctx = a4Canvas.getContext('2d');
+      if (!a4Ctx) throw new Error('Unable to get 2D context');
+      a4Ctx.fillStyle = '#ffffff';
+      a4Ctx.fillRect(0, 0, a4Width, a4Height);
+
+      // Fit the source canvas into the A4 canvas while preserving aspect ratio
+      const scale = Math.min(a4Width / srcWidth, a4Height / srcHeight);
+      const drawWidth = Math.round(srcWidth * scale);
+      const drawHeight = Math.round(srcHeight * scale);
+      const dx = Math.round((a4Width - drawWidth) / 2);
+      const dy = Math.round((a4Height - drawHeight) / 2);
+      a4Ctx.drawImage(srcCanvas, 0, 0, srcWidth, srcHeight, dx, dy, drawWidth, drawHeight);
+
+      const blob: Blob | null = await new Promise(resolve => a4Canvas.toBlob(resolve, 'image/png'));
+      if (!blob) {
+        toast.error('Capture failed', 'Could not create image');
+        return;
+      }
+
+      // Try to copy image to clipboard (modern browsers)
+      const nav: any = navigator;
+      if (nav.clipboard && typeof (window as any).ClipboardItem === 'function') {
+        try {
+          const item = new (window as any).ClipboardItem({ 'image/png': blob });
+          await nav.clipboard.write([item]);
+          toast.success('Copied to clipboard', 'Open WhatsApp and paste (Ctrl+V)');
+          return;
+        } catch (copyErr) {
+          console.warn('Clipboard write failed, falling back to download', copyErr);
+        }
+      }
+
+      // Fallback: download the image
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${sale.invoiceNumber || 'receipt'}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      toast.success('Receipt saved', 'Downloaded receipt image');
+    } catch (err) {
+      console.error('Capture error:', err);
+      toast.error('Capture failed', 'See console for details');
     }
   };
 
@@ -288,6 +451,7 @@ export default function Pos() {
     setDiscountPercentInput('');
     setDiscountAmountInput('');
     setEditorOpen(false);
+    setSelectedCustomerWhatsApp('');
   };
 
   const changeDue = (parseFloat(paidAmount) || 0) - grandTotal();
@@ -426,6 +590,7 @@ export default function Pos() {
                   setSelectedCustomerId(undefined);
                   setSelectedCustomerPhone('');
                   setSelectedCustomerAddress('');
+                  setSelectedCustomerWhatsApp('');
                 }
               }}
               onFocus={() => { if (!selectedCustomerId) setCustomerSearch(''); }}
@@ -442,6 +607,7 @@ export default function Pos() {
                       setSelectedCustomerName(c.name);
                       setSelectedCustomerPhone(c.phone || '');
                       setSelectedCustomerAddress(c.address || '');
+                      setSelectedCustomerWhatsApp('');
                       setCustomerSearch('');
                       setCustomer(c.id, c.name);
                     }}
@@ -468,6 +634,17 @@ export default function Pos() {
               <span className="text-gray-500">Address</span>
               <span className="font-medium text-gray-800 text-right">{selectedCustomerAddress || '—'}</span>
             </div>
+            {!selectedCustomerId && (
+              <div className="mt-2">
+                <label className="text-xs text-gray-500">Customer WhatsApp Number (optional)</label>
+                <Input
+                  value={selectedCustomerWhatsApp}
+                  onChange={(e) => setSelectedCustomerWhatsApp(e.target.value)}
+                  placeholder="e.g. +923001234567"
+                  className="mt-1 h-8 text-sm"
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -709,12 +886,13 @@ export default function Pos() {
               <h3 className="text-lg font-semibold text-gray-800">Sale Completed!</h3>
               <p className="text-sm text-gray-500 mt-1">Invoice: {completedSale?.invoiceNumber}</p>
               {completedSale && (
-                <div className="hidden">
+                <div style={{ position: 'absolute', left: '-9999px', top: 0, width: receiptSettings.receiptWidth || 400, zIndex: -1 }}>
                   <InvoiceReceipt
                     id="receipt"
                     sale={completedSale}
                     shopSettings={shopSettings}
                     receiptSettings={receiptSettings}
+                    hideBarcodes={true}
                   />
                 </div>
               )}
@@ -728,6 +906,17 @@ export default function Pos() {
                   <Printer className="w-4 h-4 mr-2" />
                   Print Invoice
                 </Button>
+                {completedSale?.customerWhatsApp && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => shareViaWhatsApp(completedSale as Sale & { customerWhatsApp?: string })}
+                    disabled={!completedSale}
+                  >
+                    <Smartphone className="w-4 h-4 mr-2" />
+                    Share via WhatsApp
+                  </Button>
+                )}
                 <Button
                   type="button"
                   variant="outline"

@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { usePrint } from '@/hooks/usePrint';
-import { Printer } from 'lucide-react';
+import { Printer, Smartphone, Camera } from 'lucide-react';
+import html2canvas from 'html2canvas';
 import { supabase } from '@/lib/supabaseClient';
 import { useSaleStore } from '@/stores/saleStore';
 import { useImeiStore } from '@/stores/imeiStore';
@@ -156,6 +157,12 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
 
       await useSaleStore.getState().loadData();
       toast.success('Invoice updated', editedSale.invoiceNumber || '');
+      // Copy updated invoice to clipboard automatically for convenience
+      try {
+        await copyEditedReceipt();
+      } catch (err) {
+        // ignore
+      }
       onClose();
     } catch (err) {
       console.error('Error saving edited invoice', err);
@@ -185,6 +192,106 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
     }
   };
 
+  const captureEditedReceiptToBlob = async (): Promise<Blob | null> => {
+    try {
+      const receiptEl = document.getElementById('receipt-edited');
+      if (!receiptEl) {
+        toast.error('Receipt not available', 'Cannot find receipt element');
+        return null;
+      }
+      const prevDisplay = (receiptEl as HTMLElement).style.display;
+      (receiptEl as HTMLElement).style.display = 'block';
+
+      const canvas = await html2canvas(receiptEl as HTMLElement, { scale: 2 });
+      (receiptEl as HTMLElement).style.display = prevDisplay;
+
+      // Convert into A4 canvas
+      const srcCanvas = canvas;
+      const srcWidth = srcCanvas.width;
+      const srcHeight = srcCanvas.height;
+      const dpi = 150;
+      const mmToInch = (mm: number) => mm / 25.4;
+      const a4Width = Math.round(mmToInch(210) * dpi);
+      const a4Height = Math.round(mmToInch(297) * dpi);
+      const a4Canvas = document.createElement('canvas');
+      a4Canvas.width = a4Width;
+      a4Canvas.height = a4Height;
+      const a4Ctx = a4Canvas.getContext('2d');
+      if (!a4Ctx) throw new Error('Unable to get 2D context');
+      a4Ctx.fillStyle = '#ffffff';
+      a4Ctx.fillRect(0, 0, a4Width, a4Height);
+      const scale = Math.min(a4Width / srcWidth, a4Height / srcHeight);
+      const drawWidth = Math.round(srcWidth * scale);
+      const drawHeight = Math.round(srcHeight * scale);
+      const dx = Math.round((a4Width - drawWidth) / 2);
+      const dy = Math.round((a4Height - drawHeight) / 2);
+      a4Ctx.drawImage(srcCanvas, 0, 0, srcWidth, srcHeight, dx, dy, drawWidth, drawHeight);
+
+      const blob: Blob | null = await new Promise(resolve => a4Canvas.toBlob(resolve, 'image/png'));
+      return blob;
+    } catch (err) {
+      console.error('captureEditedReceiptToBlob error', err);
+      toast.error('Capture failed', 'See console for details');
+      return null;
+    }
+  };
+
+  const copyEditedReceipt = async () => {
+    const blob = await captureEditedReceiptToBlob();
+    if (!blob) return;
+    const nav: any = navigator;
+    if (nav.clipboard && typeof (window as any).ClipboardItem === 'function') {
+      try {
+        const item = new (window as any).ClipboardItem({ 'image/png': blob });
+        await nav.clipboard.write([item]);
+        toast.success('Copied to clipboard', 'Open WhatsApp and paste (Ctrl+V)');
+        return;
+      } catch (copyErr) {
+        console.warn('Clipboard write failed', copyErr);
+      }
+    }
+    // fallback download
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${editedSale.invoiceNumber || 'receipt'}.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast.success('Receipt saved', 'Downloaded receipt image');
+  };
+
+  const shareEditedReceiptViaWhatsApp = async () => {
+    // Try to upload image to Supabase storage and include public URL in message
+    const blob = await captureEditedReceiptToBlob();
+    const digits = (editedSale as any).customerPhone ? String((editedSale as any).customerPhone).replace(/\D/g, '') : '';
+    let message = `Invoice: ${editedSale.invoiceNumber}%0ATotal: ${editedSale.grandTotal}`;
+    if (!blob) {
+      // Open wa.me with text only
+      const url = `https://wa.me/${digits || ''}?text=${encodeURIComponent(message)}`;
+      window.open(url, '_blank');
+      return;
+    }
+
+    try {
+      const fileName = `receipts/edited-${editedSale.invoiceNumber || Date.now()}.png`;
+      const { data: uploadData, error: uploadError } = await supabase.storage.from('receipts').upload(fileName, blob, { contentType: 'image/png', upsert: true });
+      if (!uploadError) {
+        const { data: publicData } = supabase.storage.from('receipts').getPublicUrl(fileName);
+        const publicUrl = publicData?.publicUrl;
+        if (publicUrl) {
+          message += `%0A%0AReceipt: ${publicUrl}`;
+        }
+      }
+    } catch (err) {
+      console.warn('Upload failed', err);
+    }
+
+    const url = `https://wa.me/${digits || ''}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
+  };
+
   useEffect(() => {
     if (open) {
       window.addEventListener('keydown', handleKeyDown);
@@ -209,6 +316,22 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
               <h1 className="text-2xl font-semibold text-slate-900">{editedSale.invoiceNumber}</h1>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={copyEditedReceipt}
+                className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+              >
+                <Camera className="mr-2 h-4 w-4" />
+                Copy
+              </button>
+              <button
+                type="button"
+                onClick={shareEditedReceiptViaWhatsApp}
+                className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+              >
+                <Smartphone className="mr-2 h-4 w-4" />
+                Share
+              </button>
               <button
                 type="button"
                 onClick={handlePrint}
@@ -510,6 +633,7 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
                     receiptSettings={receiptSettings} 
                     layout={receiptSettings.receiptWidth === '58mm' ? 'thermal' : 'a4'} 
                     id="receipt-edited"
+                    hideBarcodes={true}
                   />
                 </div>
               </div>

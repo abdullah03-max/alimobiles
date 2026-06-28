@@ -15,6 +15,7 @@ interface InvoiceReceiptProps {
   id?: string;
   screen?: boolean;
   layout?: 'thermal' | 'a4';
+  hideBarcodes?: boolean;
 }
 
 function MultilineText({ text, className }: { text?: string; className?: string }) {
@@ -131,6 +132,7 @@ export default function InvoiceReceipt({
   id,
   screen = false,
   layout = 'a4',
+  hideBarcodes = false,
 }: InvoiceReceiptProps) {
   const paymentLabel = sale.paymentMethod.replace(/_/g, ' ');
   const printWidth = receiptSettings.receiptWidth === '58mm' ? 32 : 46;
@@ -496,7 +498,7 @@ export default function InvoiceReceipt({
         </div>
 
         {/* IMEI Barcode Section */}
-        {(() => {
+        {!receiptSettings.hideBarcodes && !hideBarcodes && (() => {
           const extractImeis = (item: any) => {
             let imei1 = null;
             let imei2 = null;
