@@ -570,8 +570,14 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
                         <Input 
                           type="number" 
                           value={String(Math.max(0, editedSale.grandTotal - editedSale.paidAmount))} 
-                          readOnly
-                          className="mt-1 font-semibold text-base bg-gray-100"
+                          onChange={e => {
+                            const pending = Number(e.target.value) || 0;
+                            setEditedSale(prev => ({
+                              ...prev,
+                              paidAmount: Math.max(0, prev.grandTotal - pending)
+                            }));
+                          }}
+                          className="mt-1 font-semibold text-base"
                         />
                       </div>
                       <div className="rounded-lg bg-purple-50 border border-purple-200 p-3">
