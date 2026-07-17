@@ -44,13 +44,23 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
     setEditedSale(prev => {
       const copy = cloneSale(prev);
       copy.items[index] = { ...copy.items[index], ...patch } as SaleItem;
-      // Recalculate line total
-      copy.items[index].total = copy.items[index].quantity * copy.items[index].unitPrice;
-      // Recompute totals
-      copy.subtotal = copy.items.reduce((s, it) => s + it.total, 0);
-      const disc = copy.discount || 0;
+      // Recalculate line total: base - item discount
+      const item = copy.items[index];
+      const base = item.quantity * item.unitPrice;
+      const disc = item.discount || 0;
+      const discAmt = item.discountType === 'percent' ? Math.round(base * (disc / 100)) : Math.min(disc, base);
+      item.total = base - discAmt;
+      // Recompute subtotal
+      copy.subtotal = copy.items.reduce((s, it) => s + (it.quantity * it.unitPrice), 0);
+      // Recompute total discount
+      const totalItemDiscount = copy.items.reduce((sum, it) => {
+        const basePrice = it.quantity * it.unitPrice;
+        const itDisc = it.discount || 0;
+        return sum + (it.discountType === 'percent' ? Math.round(basePrice * (itDisc / 100)) : Math.min(itDisc, basePrice));
+      }, 0);
+      copy.discount = totalItemDiscount;
       const tax = copy.tax || 0;
-      copy.grandTotal = Math.max(0, copy.subtotal - disc + tax);
+      copy.grandTotal = Math.max(0, copy.subtotal - copy.discount + tax);
       return copy;
     });
   };
@@ -59,15 +69,15 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
     printReceipt('receipt-edited', receiptSettings.receiptWidth);
   };
 
-  const handleSave = async () => {
-    if (!window.confirm('Save changes to this invoice? This will overwrite existing invoice data.')) return;
+  const handleSaveAndPrint = async () => {
+    if (!window.confirm('Save changes and print this invoice?')) return;
     setSaving(true);
     try {
-      // Update sales row
+      // Reuse the same save logic
       await useSaleStore.getState().updateSale(editedSale.id, {
         customerName: editedSale.customerName,
-        ...((editedSale as any).customerPhone ? { customerPhone: (editedSale as any).customerPhone } : {}),
-        ...((editedSale as any).customerAddress ? { customerAddress: (editedSale as any).customerAddress } : {}),
+        customerPhone: editedSale.customerPhone || undefined,
+        customerAddress: editedSale.customerAddress || undefined,
         notes: editedSale.notes,
         discount: editedSale.discount,
         tax: editedSale.tax,
@@ -75,7 +85,6 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
         grandTotal: editedSale.grandTotal,
       });
 
-      // Replace sale_items for this sale
       const { error: delErr } = await supabase.from('sale_items').delete().eq('sale_id', editedSale.id);
       if (delErr) throw delErr;
 
@@ -91,6 +100,8 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
           storage: item.storage || null,
           ram: item.ram || null,
           pta_status: item.ptaStatus || null,
+          discount: item.discount || 0,
+          discount_type: item.discountType || 'amount',
         };
         if (item.imei1) payload.imei1 = item.imei1;
         if (item.imei2) payload.imei2 = item.imei2;
@@ -121,6 +132,96 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
               storage: item.storage || null,
               ram: item.ram || null,
               pta_status: item.ptaStatus || null,
+              discount: item.discount || 0,
+              discount_type: item.discountType || 'amount',
+            };
+          });
+          const fallbackRes = await supabase.from('sale_items').insert(fallback);
+          if (fallbackRes.error) throw fallbackRes.error;
+        } else {
+          throw insertRes.error;
+        }
+      }
+
+      toast.success('Invoice saved! Printing...');
+      // Small delay to let the state settle before printing
+      setTimeout(() => {
+        printReceipt('receipt-edited', receiptSettings.receiptWidth);
+      }, 300);
+    } catch (err) {
+      console.error('Save & Print error:', err);
+      toast.error('Failed to save. Print cancelled.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!window.confirm('Save changes to this invoice? This will overwrite existing invoice data.')) return;
+    setSaving(true);
+    try {
+      // Update sales row
+      await useSaleStore.getState().updateSale(editedSale.id, {
+        customerName: editedSale.customerName,
+        customerPhone: editedSale.customerPhone || undefined,
+        customerAddress: editedSale.customerAddress || undefined,
+        notes: editedSale.notes,
+        discount: editedSale.discount,
+        tax: editedSale.tax,
+        subtotal: editedSale.subtotal,
+        grandTotal: editedSale.grandTotal,
+      });
+
+      // Replace sale_items for this sale
+      const { error: delErr } = await supabase.from('sale_items').delete().eq('sale_id', editedSale.id);
+      if (delErr) throw delErr;
+
+      const itemsToInsert = editedSale.items.map(item => {
+        const payload: any = {
+          sale_id: editedSale.id,
+          product_id: item.productId,
+          product_name: item.productName,
+          quantity: item.quantity,
+          unit_price: item.unitPrice,
+          total: item.total,
+          color: item.color || null,
+          storage: item.storage || null,
+          ram: item.ram || null,
+          pta_status: item.ptaStatus || null,
+          discount: item.discount || 0,
+          discount_type: item.discountType || 'amount',
+        };
+        if (item.imei1) payload.imei1 = item.imei1;
+        if (item.imei2) payload.imei2 = item.imei2;
+        if (!item.imei1 && !item.imei2 && item.imei) payload.imei = item.imei;
+        return payload;
+      });
+
+      let insertRes = await supabase.from('sale_items').insert(itemsToInsert);
+      if (insertRes.error) {
+        const msg = String(insertRes.error.message || JSON.stringify(insertRes.error)).toLowerCase();
+        const missingImeiCol = msg.includes('imei1') || msg.includes('imei2');
+        if (missingImeiCol) {
+          const fallback = editedSale.items.map(item => {
+            let imeiValue = null;
+            if (item.imei1 && item.imei2) imeiValue = `${item.imei1}||${item.imei2}`;
+            else if (item.imei1) imeiValue = item.imei1;
+            else if (item.imei2) imeiValue = item.imei2;
+            else if (item.imei) imeiValue = item.imei;
+            return {
+              sale_id: editedSale.id,
+              product_id: item.productId,
+              product_name: item.productName,
+              quantity: item.quantity,
+              unit_price: item.unitPrice,
+              total: item.total,
+              imei: imeiValue,
+              color: item.color || null,
+              storage: item.storage || null,
+              ram: item.ram || null,
+              pta_status: item.ptaStatus || null,
+              discount: item.discount || 0,
+              discount_type: item.discountType || 'amount',
             };
           });
           const fallbackRes = await supabase.from('sale_items').insert(fallback);
@@ -265,7 +366,7 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
   const shareEditedReceiptViaWhatsApp = async () => {
     // Try to upload image to Supabase storage and include public URL in message
     const blob = await captureEditedReceiptToBlob();
-    const digits = (editedSale as any).customerPhone ? String((editedSale as any).customerPhone).replace(/\D/g, '') : '';
+    const digits = editedSale.customerPhone ? String(editedSale.customerPhone).replace(/\D/g, '') : '';
     let message = `Invoice: ${editedSale.invoiceNumber}%0ATotal: ${editedSale.grandTotal}`;
     if (!blob) {
       // Open wa.me with text only
@@ -350,6 +451,15 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
               </button>
               <button
                 type="button"
+                onClick={handleSaveAndPrint}
+                className="inline-flex items-center justify-center rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700"
+                disabled={saving}
+              >
+                <Printer className="mr-2 h-4 w-4" />
+                {saving ? 'Saving...' : 'Save & Print'}
+              </button>
+              <button
+                type="button"
                 onClick={handleClose}
                 className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
               >
@@ -414,7 +524,7 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
                       <div>
                         <Label>Phone</Label>
                         <Input
-                          value={(editedSale as any).customerPhone || ''}
+                          value={editedSale.customerPhone || ''}
                           onChange={e => setEditedSale(prev => ({ ...prev, customerPhone: e.target.value }))}
                           placeholder="(optional)"
                         />
@@ -422,7 +532,7 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
                       <div className="sm:col-span-2">
                         <Label>Address</Label>
                         <Input
-                          value={(editedSale as any).customerAddress || ''}
+                          value={editedSale.customerAddress || ''}
                           onChange={e => setEditedSale(prev => ({ ...prev, customerAddress: e.target.value }))}
                           placeholder="(optional)"
                         />
@@ -492,6 +602,24 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
                                 onChange={e => updateItem(idx, { unitPrice: Number(e.target.value) || 0 })} 
                               />
                             </div>
+                            <div>
+                              <Label>Item Discount %</Label>
+                              <Input 
+                                type="number" 
+                                value={String(it.discountType === 'percent' ? (it.discount || '') : '')} 
+                                onChange={e => updateItem(idx, { discount: Number(e.target.value) || 0, discountType: 'percent' })} 
+                                placeholder="%"
+                              />
+                            </div>
+                            <div>
+                              <Label>Item Discount ₹</Label>
+                              <Input 
+                                type="number" 
+                                value={String(it.discountType === 'amount' ? (it.discount || '') : '')} 
+                                onChange={e => updateItem(idx, { discount: Number(e.target.value) || 0, discountType: 'amount' })} 
+                                placeholder="0"
+                              />
+                            </div>
                             <div className="sm:col-span-2">
                               <Label>Line Total</Label>
                               <Input value={String(it.total)} readOnly className="bg-gray-100" />
@@ -505,18 +633,12 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
                   <section>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
-                        <Label>Discount</Label>
+                        <Label>Total Discount (Sum of Item Discounts)</Label>
                         <Input 
                           type="number" 
                           value={String(editedSale.discount)} 
-                          onChange={e => {
-                            const disc = Number(e.target.value) || 0;
-                            setEditedSale(prev => ({
-                              ...prev,
-                              discount: disc,
-                              grandTotal: Math.max(0, prev.subtotal - disc + prev.tax)
-                            }));
-                          }} 
+                          readOnly 
+                          className="bg-gray-100 cursor-not-allowed"
                         />
                       </div>
                       <div>

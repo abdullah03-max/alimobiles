@@ -44,6 +44,7 @@ export default function Pos() {
   const updateQuantity = useCartStore(s => s.updateQuantity);
   const clearCart = useCartStore(s => s.clearCart);
   const setDiscount = useCartStore(s => s.setDiscount);
+  const setProductDiscount = useCartStore(s => s.setProductDiscount);
   const setCustomer = useCartStore(s => s.setCustomer);
   const subtotal = useCartStore(s => s.subtotal);
   const discountPercentValue = useCartStore(s => s.discountPercent());
@@ -241,20 +242,27 @@ export default function Pos() {
           customerId: selectedCustomerId,
           customerName: selectedCustomerName,
           createdBy: uid,
-          items: cartItems.map(i => ({
-            productId: i.productId,
-            productName: i.productName,
-            quantity: i.quantity,
-            unitPrice: i.unitPrice,
-            total: i.total,
-            imei: i.imei,
-            imei1: i.imei1,
-            imei2: i.imei2,
-            color: i.color,
-            ram: i.ram,
-            storage: i.storage,
-            ptaStatus: i.ptaStatus,
-          })),
+          items: cartItems.map(i => {
+            const discAmt = i.discountType === 'percent'
+              ? Math.round((i.quantity * i.unitPrice) * ((i.discount || 0) / 100))
+              : (i.discount || 0);
+            return {
+              productId: i.productId,
+              productName: i.productName,
+              quantity: i.quantity,
+              unitPrice: i.unitPrice,
+              total: i.total - discAmt,
+              imei: i.imei,
+              imei1: i.imei1,
+              imei2: i.imei2,
+              color: i.color,
+              ram: i.ram,
+              storage: i.storage,
+              ptaStatus: i.ptaStatus,
+              discount: i.discount || 0,
+              discountType: i.discountType || 'amount',
+            };
+          }),
           subtotal: subtotal(),
           discount: discountAmountValue,
           tax: 0,
@@ -557,9 +565,9 @@ export default function Pos() {
       </div>
 
       {/* Right Panel - Cart */}
-      <div className="w-full lg:w-[420px] flex flex-col bg-white border-t border-gray-200 lg:border-t-0 lg:border-l">
+      <div className="w-full lg:w-[420px] flex flex-col bg-white border-t border-gray-200 lg:border-t-0 lg:border-l h-[calc(100vh-3.5rem)]">
         {/* Cart Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 flex-shrink-0">
           <div>
             <h3 className="font-semibold text-gray-800">Current Order</h3>
             <p className="text-xs text-gray-500">{itemCount()} items</p>
@@ -576,213 +584,216 @@ export default function Pos() {
           </div>
         </div>
 
-        {/* Customer Selection */}
-        <div className="px-4 py-2 border-b border-gray-100">
-          <div className="relative">
-            <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input
-              value={customerSearch}
-              onChange={(e) => {
-                const value = e.target.value;
-                setCustomerSearch(value);
-                setSelectedCustomerName(value || 'Walk-in Customer');
-                if (!value) {
-                  setSelectedCustomerId(undefined);
-                  setSelectedCustomerPhone('');
-                  setSelectedCustomerAddress('');
-                  setSelectedCustomerWhatsApp('');
-                }
-              }}
-              onFocus={() => { if (!selectedCustomerId) setCustomerSearch(''); }}
-              placeholder={selectedCustomerName}
-              className="pl-9 h-8 text-sm"
-            />
-            {filteredCustomers.length > 0 && (
-              <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-md shadow-lg z-10 mt-1">
-                {filteredCustomers.map(c => (
-                  <button
-                    key={c.id}
-                    onClick={() => {
-                      setSelectedCustomerId(c.id);
-                      setSelectedCustomerName(c.name);
-                      setSelectedCustomerPhone(c.phone || '');
-                      setSelectedCustomerAddress(c.address || '');
-                      setSelectedCustomerWhatsApp('');
-                      setCustomerSearch('');
-                      setCustomer(c.id, c.name);
-                    }}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
-                  >
-                    <span className="font-medium">{c.name}</span>
-                    <span className="text-gray-500 ml-2">{c.phone}</span>
-                    {c.address && <span className="text-gray-400 ml-2">{c.address}</span>}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="mt-2 rounded-md border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-600 space-y-1">
-            <div className="flex items-start justify-between gap-3">
-              <span className="text-gray-500">Customer</span>
-              <span className="font-medium text-gray-800 text-right">{selectedCustomerName}</span>
-            </div>
-            <div className="flex items-start justify-between gap-3">
-              <span className="text-gray-500">Phone</span>
-              <span className="font-medium text-gray-800 text-right">{selectedCustomerPhone || '—'}</span>
-            </div>
-            <div className="flex items-start justify-between gap-3">
-              <span className="text-gray-500">Address</span>
-              <span className="font-medium text-gray-800 text-right">{selectedCustomerAddress || '—'}</span>
-            </div>
-            {!selectedCustomerId && (
-              <div className="mt-2">
-                <label className="text-xs text-gray-500">Customer WhatsApp Number (optional)</label>
-                <Input
-                  value={selectedCustomerWhatsApp}
-                  onChange={(e) => setSelectedCustomerWhatsApp(e.target.value)}
-                  placeholder="e.g. +923001234567"
-                  className="mt-1 h-8 text-sm"
-                />
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Cart Items */}
-        <div className="flex-1 overflow-y-auto bg-gray-50 p-2">
-          {cartItems.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center px-4">
-              <ShoppingCart className="w-16 h-16 text-gray-200 mb-3" />
-              <p className="text-gray-400 font-medium">Your cart is empty</p>
-              <p className="text-gray-400 text-sm">Scan a barcode or select a product</p>
-              <p className="text-orange-500 text-xs mt-2">Press F2 to scan</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {cartItems.map(item => (
-                <div key={item.productId + '-' + item.imei} className="bg-white rounded-lg border border-gray-200 p-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">{item.productName}</p>
-                      <div className="text-xs text-gray-500 mt-0.5">
-                        {item.brandName && <span className="font-medium text-gray-700">{item.brandName}</span>}
-                        {item.model && <span className="ml-1">{item.model}</span>}
-                        {item.storage && <span className="ml-2">· {item.storage}</span>}
-                      </div>
-                      {item.imei && (
-                        <div className="text-[10px] text-orange-600 font-mono mt-0.5 space-y-0.5">
-                          <p>IMEI 1: {item.imei1 || item.imei} {item.color ? `(${item.color})` : ''}</p>
-                          {item.imei2 && <p>IMEI 2: {item.imei2}</p>}
-                        </div>
-                      )}
-                      <p className="text-xs text-gray-500 mt-0.5">{formatCurrency(item.unitPrice)} each</p>
-                    </div>
+        {/* Scrollable container for Customer Selection, Cart Items, and Summary */}
+        <div className="flex-1 overflow-y-auto flex flex-col bg-gray-50">
+          {/* Customer Selection */}
+          <div className="px-4 py-2 border-b border-gray-100 bg-white flex-shrink-0">
+            <div className="relative">
+              <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                value={customerSearch}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setCustomerSearch(value);
+                  setSelectedCustomerName(value || 'Walk-in Customer');
+                  if (!value) {
+                    setSelectedCustomerId(undefined);
+                    setSelectedCustomerPhone('');
+                    setSelectedCustomerAddress('');
+                    setSelectedCustomerWhatsApp('');
+                  }
+                }}
+                onFocus={() => { if (!selectedCustomerId) setCustomerSearch(''); }}
+                placeholder={selectedCustomerName}
+                className="pl-9 h-8 text-sm"
+              />
+              {filteredCustomers.length > 0 && (
+                <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-md shadow-lg z-10 mt-1">
+                  {filteredCustomers.map(c => (
                     <button
-                      onClick={() => removeItem(item.productId, item.imei)}
-                      className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500"
+                      key={c.id}
+                      onClick={() => {
+                        setSelectedCustomerId(c.id);
+                        setSelectedCustomerName(c.name);
+                        setSelectedCustomerPhone(c.phone || '');
+                        setSelectedCustomerAddress(c.address || '');
+                        setSelectedCustomerWhatsApp('');
+                        setCustomerSearch('');
+                        setCustomer(c.id, c.name);
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
                     >
-                      <X className="w-4 h-4" />
+                      <span className="font-medium">{c.name}</span>
+                      <span className="text-gray-500 ml-2">{c.phone}</span>
+                      {c.address && <span className="text-gray-400 ml-2">{c.address}</span>}
                     </button>
-                  </div>
-                  <div className="flex items-center justify-between mt-2">
-                    {item.imei ? (
-                      <span className="text-[11px] text-gray-500 bg-gray-50 border px-2 py-0.5 rounded-full font-medium">Single Device (Qty: 1)</span>
-                    ) : (
-                      <div className="flex items-center gap-1">
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="mt-2 rounded-md border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-600 space-y-1">
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-gray-500">Customer</span>
+                <span className="font-medium text-gray-800 text-right">{selectedCustomerName}</span>
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-gray-500">Phone</span>
+                <span className="font-medium text-gray-800 text-right">{selectedCustomerPhone || '—'}</span>
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-gray-500">Address</span>
+                <span className="font-medium text-gray-800 text-right">{selectedCustomerAddress || '—'}</span>
+              </div>
+              {!selectedCustomerId && (
+                <div className="mt-2">
+                  <label className="text-xs text-gray-500">Customer WhatsApp Number (optional)</label>
+                  <Input
+                    value={selectedCustomerWhatsApp}
+                    onChange={(e) => setSelectedCustomerWhatsApp(e.target.value)}
+                    placeholder="e.g. +923001234567"
+                    className="mt-1 h-8 text-sm"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Cart Items */}
+          <div className="p-2 space-y-2 bg-gray-50">
+            {cartItems.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+                <ShoppingCart className="w-16 h-16 text-gray-200 mb-3" />
+                <p className="text-gray-400 font-medium">Your cart is empty</p>
+                <p className="text-gray-400 text-sm">Scan a barcode or select a product</p>
+                <p className="text-orange-500 text-xs mt-2">Press F2 to scan</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {cartItems.map(item => {
+                  const itemDiscVal = item.discountType === 'percent'
+                    ? Math.round((item.quantity * item.unitPrice) * ((item.discount || 0) / 100))
+                    : (item.discount || 0);
+                  const discountedTotal = (item.quantity * item.unitPrice) - itemDiscVal;
+
+                  return (
+                    <div key={item.productId + '-' + item.imei} className="bg-white rounded-lg border border-gray-200 p-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800 truncate">{item.productName}</p>
+                          <div className="text-xs text-gray-500 mt-0.5">
+                            {item.brandName && <span className="font-medium text-gray-700">{item.brandName}</span>}
+                            {item.model && <span className="ml-1">{item.model}</span>}
+                            {item.storage && <span className="ml-2">· {item.storage}</span>}
+                          </div>
+                          {item.imei && (
+                            <div className="text-[10px] text-orange-600 font-mono mt-0.5 space-y-0.5">
+                              <p>IMEI 1: {item.imei1 || item.imei} {item.color ? `(${item.color})` : ''}</p>
+                              {item.imei2 && <p>IMEI 2: {item.imei2}</p>}
+                            </div>
+                          )}
+                          <p className="text-xs text-gray-500 mt-0.5">{formatCurrency(item.unitPrice)} each</p>
+                        </div>
                         <button
-                          onClick={() => updateQuantity(item.productId, item.quantity - 1, item.imei)}
-                          className="w-7 h-7 flex items-center justify-center rounded border border-gray-200 hover:bg-gray-50"
+                          onClick={() => removeItem(item.productId, item.imei)}
+                          className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 flex-shrink-0 ml-2"
                         >
-                          <Minus className="w-3 h-3" />
-                        </button>
-                        <span className="w-8 text-center text-sm font-semibold">{item.quantity}</span>
-                        <button
-                          onClick={() => updateQuantity(item.productId, item.quantity + 1, item.imei)}
-                          className="w-7 h-7 flex items-center justify-center rounded border border-orange-200 text-orange-500 hover:bg-orange-50"
-                        >
-                          <Plus className="w-3 h-3" />
+                          <X className="w-4 h-4" />
                         </button>
                       </div>
-                    )}
-                    <p className="text-sm font-semibold text-gray-800">{formatCurrency(item.total)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
 
-        {/* Cart Summary */}
-        <div className="border-t border-gray-200 p-4 bg-white">
-          {/* Discount */}
-          <div className="grid grid-cols-2 gap-2 mb-2">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Discount %</span>
-              <Input
-                value={discountPercentInput}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setDiscountPercentInput(value);
+                      {/* Individual Price and Discount fields */}
+                      <div className="mt-2 pt-2 border-t border-gray-100 grid grid-cols-3 gap-2">
+                        <div>
+                          <span className="text-[10px] text-gray-500 block mb-0.5">Price</span>
+                          <div className="h-8 flex items-center justify-center border border-gray-200 rounded bg-gray-50 text-xs font-semibold text-gray-700 px-1 font-mono">
+                            {formatCurrency(item.unitPrice)}
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-gray-500 block mb-0.5">Disc %</span>
+                          <Input
+                            value={item.discountType === 'percent' ? (item.discount ? String(item.discount) : '') : ''}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
+                              setProductDiscount(item.productId, !isNaN(val) ? val : 0, 'percent', item.imei);
+                            }}
+                            placeholder="%"
+                            className="h-8 text-xs px-2 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-gray-500 block mb-0.5">Disc ₹</span>
+                          <Input
+                            value={item.discountType === 'amount' ? (item.discount ? String(item.discount) : '') : ''}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
+                              setProductDiscount(item.productId, !isNaN(val) ? val : 0, 'amount', item.imei);
+                            }}
+                            placeholder="0"
+                            className="h-8 text-xs px-2 font-mono"
+                          />
+                        </div>
+                      </div>
 
-                  const amount = parseFloat(value);
-                  if (!isNaN(amount)) {
-                    setDiscount(amount, 'percent');
-                  } else {
-                    setDiscount(0, 'percent');
-                  }
-                }}
-                placeholder="%"
-                className="w-full h-8 text-sm"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Discount ₹</span>
-              <Input
-                value={discountAmountInput}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setDiscountAmountInput(value);
-
-                  const amount = parseFloat(value);
-                  if (!isNaN(amount)) {
-                    setDiscount(amount, 'amount');
-                  } else {
-                    setDiscount(0, 'amount');
-                  }
-                }}
-                placeholder="0"
-                className="w-full h-8 text-sm"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1.5 text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Subtotal</span>
-              <span className="font-medium">{formatCurrency(subtotal())}</span>
-            </div>
-            {discountAmountValue > 0 && (
-              <div className="flex justify-between text-orange-500">
-                <span>Discount</span>
-                <span>-{formatCurrency(discountAmountValue)}</span>
+                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-50">
+                        {item.imei ? (
+                          <span className="text-[11px] text-gray-500 bg-gray-50 border px-2 py-0.5 rounded-full font-medium">Single Device (Qty: 1)</span>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => updateQuantity(item.productId, item.quantity - 1, item.imei)}
+                              className="w-7 h-7 flex items-center justify-center rounded border border-gray-200 hover:bg-gray-50"
+                            >
+                              <Minus className="w-3 h-3" />
+                            </button>
+                            <span className="w-8 text-center text-sm font-semibold">{item.quantity}</span>
+                            <button
+                              onClick={() => updateQuantity(item.productId, item.quantity + 1, item.imei)}
+                              className="w-7 h-7 flex items-center justify-center rounded border border-orange-200 text-orange-500 hover:bg-orange-50"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
+                        <p className="text-sm font-semibold text-gray-800">{formatCurrency(discountedTotal)}</p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
-            <div className="flex justify-between pt-2 border-t border-gray-100">
-              <span className="font-semibold text-gray-800">Grand Total</span>
-              <span className="text-lg font-bold text-orange-500">{formatCurrency(grandTotal())}</span>
-            </div>
           </div>
 
-          <Button
-            onClick={() => {
-              setCheckoutOpen(true);
-              setPaidAmount(String(grandTotal()));
-            }}
-            disabled={cartItems.length === 0}
-            className="w-full mt-3 h-12 bg-orange-500 hover:bg-orange-600 text-base font-semibold"
-          >
-            Checkout — {formatCurrency(grandTotal())}
-          </Button>
+          {/* Cart Summary */}
+          <div className="border-t border-gray-200 p-4 bg-white mt-auto flex-shrink-0">
+            <div className="space-y-1.5 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Subtotal</span>
+                <span className="font-medium">{formatCurrency(subtotal())}</span>
+              </div>
+              {discountAmountValue > 0 && (
+                <div className="flex justify-between text-orange-500">
+                  <span>Discount</span>
+                  <span>-{formatCurrency(discountAmountValue)}</span>
+                </div>
+              )}
+              <div className="flex justify-between pt-2 border-t border-gray-100">
+                <span className="font-semibold text-gray-800">Grand Total</span>
+                <span className="text-lg font-bold text-orange-500">{formatCurrency(grandTotal())}</span>
+              </div>
+            </div>
+
+            <Button
+              onClick={() => {
+                setCheckoutOpen(true);
+                setPaidAmount(String(grandTotal()));
+              }}
+              disabled={cartItems.length === 0}
+              className="w-full mt-3 h-12 bg-orange-500 hover:bg-orange-600 text-base font-semibold"
+            >
+              Checkout — {formatCurrency(grandTotal())}
+            </Button>
+          </div>
         </div>
       </div>
 

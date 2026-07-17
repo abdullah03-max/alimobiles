@@ -198,6 +198,8 @@ export const useSaleStore = create<SaleState>((set, get) => ({
           storage: item.storage || null,
           ram: item.ram || null,
           pta_status: item.ptaStatus || null,
+          discount: item.discount || 0,
+          discount_type: item.discountType || 'amount',
         };
 
         if (item.imei1) payload.imei1 = item.imei1;
@@ -244,6 +246,8 @@ export const useSaleStore = create<SaleState>((set, get) => ({
               storage: item.storage || null,
               ram: item.ram || null,
               pta_status: item.ptaStatus || null,
+              discount: item.discount || 0,
+              discount_type: item.discountType || 'amount',
             };
           });
           const fallbackResponse = await supabase

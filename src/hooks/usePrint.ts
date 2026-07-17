@@ -220,6 +220,37 @@ export function usePrint() {
           .items-table th:nth-child(5), .items-table td:nth-child(5) { width: 35% !important; font-size: 9.5px !important; }
           ` : ''}
 
+          /* Specific overrides for sale-items-table (7 columns) to fix wrapping/overlapping */
+          .sale-items-table {
+            table-layout: fixed !important;
+            width: 100% !important;
+          }
+          .sale-items-table th, .sale-items-table td {
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
+            white-space: normal !important;
+            vertical-align: middle !important;
+            padding: 2px 1px !important;
+            font-size: 8.5px !important;
+            font-weight: 700 !important;
+          }
+          .sale-items-table th:nth-child(1), .sale-items-table td:nth-child(1) { width: 5% !important; text-align: center !important; }
+          .sale-items-table th:nth-child(2), .sale-items-table td:nth-child(2) { width: 38% !important; text-align: left !important; }
+          .sale-items-table th:nth-child(3), .sale-items-table td:nth-child(3) { width: 12% !important; text-align: center !important; }
+          .sale-items-table th:nth-child(4), .sale-items-table td:nth-child(4),
+          .sale-items-table th:nth-child(5), .sale-items-table td:nth-child(5),
+          .sale-items-table th:nth-child(6), .sale-items-table td:nth-child(6) { 
+            width: 15% !important; 
+            text-align: right !important; 
+            white-space: nowrap !important;
+            font-family: 'Tahoma', 'Arial', 'Helvetica', sans-serif !important;
+          }
+          ${receiptWidth === '58mm' ? `
+          .sale-items-table th, .sale-items-table td {
+            font-size: 7.5px !important;
+          }
+          ` : ''}
+
           /* Customer info table */
           .w-full.border-collapse.border.border-black {
             width: 100% !important;
@@ -753,6 +784,26 @@ export function usePrint() {
           th, td { border: 1px solid #000 !important; padding: 6px; font-size: 12px; }
           th { background-color: #f3f4f6 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-family: 'Arial', 'Helvetica', sans-serif !important; }
           td { font-family: 'Tahoma', 'Arial', 'Helvetica', sans-serif !important; }
+          .sale-items-table {
+            table-layout: fixed !important;
+            width: 100% !important;
+          }
+          .sale-items-table th, .sale-items-table td {
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
+            white-space: normal !important;
+            vertical-align: middle !important;
+          }
+          .sale-items-table th:nth-child(1), .sale-items-table td:nth-child(1) { width: 5% !important; text-align: center !important; }
+          .sale-items-table th:nth-child(2), .sale-items-table td:nth-child(2) { width: 38% !important; text-align: left !important; }
+          .sale-items-table th:nth-child(3), .sale-items-table td:nth-child(3) { width: 12% !important; text-align: center !important; }
+          .sale-items-table th:nth-child(4), .sale-items-table td:nth-child(4),
+          .sale-items-table th:nth-child(5), .sale-items-table td:nth-child(5),
+          .sale-items-table th:nth-child(6), .sale-items-table td:nth-child(6) { 
+            width: 15% !important; 
+            text-align: right !important; 
+            white-space: nowrap !important;
+          }
           .grid { display: grid; }
           .grid-cols-2 { display: grid; grid-template-columns: 60% 40%; }
           .grid-cols-3 { display: grid; grid-template-columns: 1fr 1.2fr 1fr; }

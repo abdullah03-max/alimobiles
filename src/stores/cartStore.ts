@@ -16,6 +16,7 @@ interface CartState {
   updateQuantity: (productId: string, quantity: number, imei?: string) => void;
   clearCart: () => void;
   setDiscount: (value: number, type: 'percent' | 'amount') => void;
+  setProductDiscount: (productId: string, value: number, type: 'percent' | 'amount', imei?: string) => void;
   setCustomer: (id: string | undefined, name: string) => void;
   setNotes: (notes: string) => void;
 
@@ -110,6 +111,8 @@ export const useCartStore = create<CartState>((set, get) => ({
         color,
         ram,
         ptaStatus,
+        discount: 0,
+        discountType: 'amount',
       };
       set({ items: [...items, newItem] });
       return true;
@@ -153,6 +156,8 @@ export const useCartStore = create<CartState>((set, get) => ({
         color,
         ram,
         ptaStatus,
+        discount: 0,
+        discountType: 'amount',
       };
       set({ items: [...items, newItem] });
       return true;
@@ -192,6 +197,16 @@ export const useCartStore = create<CartState>((set, get) => ({
     }
   },
 
+  setProductDiscount: (productId: string, value: number, type: 'percent' | 'amount', imei?: string) => {
+    set({
+      items: get().items.map(i =>
+        i.productId === productId && i.imei === imei
+          ? { ...i, discount: Math.max(0, value), discountType: type }
+          : i
+      ),
+    });
+  },
+
   setCustomer: (id: string | undefined, name: string) => {
     set({ customerId: id, customerName: name });
   },
@@ -203,18 +218,20 @@ export const useCartStore = create<CartState>((set, get) => ({
   subtotal: () => get().items.reduce((sum, i) => sum + i.total, 0),
 
   discountPercent: () => {
-    const { discount, discountType } = get();
     const sub = get().subtotal();
     if (sub <= 0) return 0;
-    if (discountType === 'percent') return discount;
-    return Number(((discount / sub) * 100).toFixed(2));
+    return Number(((get().discountAmount() / sub) * 100).toFixed(2));
   },
 
   discountAmount: () => {
-    const { discount, discountType } = get();
-    const sub = get().subtotal();
-    if (discountType === 'percent') return Math.round(sub * (discount / 100));
-    return Math.min(discount, sub);
+    return get().items.reduce((sum, item) => {
+      const base = item.quantity * item.unitPrice;
+      const val = item.discount || 0;
+      if (item.discountType === 'percent') {
+        return sum + Math.round(base * (val / 100));
+      }
+      return sum + Math.min(val, base);
+    }, 0);
   },
 
   taxAmount: () => 0,

@@ -119,6 +119,8 @@ type SaleItem = {
   ram?: string;
   storage?: string;
   ptaStatus?: string;
+  discount?: number;
+  discountType?: 'percent' | 'amount';
 };
 
 // Sale
@@ -127,6 +129,8 @@ type Sale = {
   invoiceNumber: string;
   customerId?: string;
   customerName: string;
+  customerPhone?: string;
+  customerAddress?: string;
   items: SaleItem[];
   subtotal: number;
   discount: number;
@@ -318,6 +322,8 @@ type CartItem = {
   ram?: string;
   ptaStatus?: string;
   maxStock: number;
+  discount?: number;
+  discountType?: 'percent' | 'amount';
 };
 
 // Toast

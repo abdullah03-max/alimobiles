@@ -158,8 +158,8 @@ export default function InvoiceReceipt({
 
   const { getCustomerById } = useCustomerStore();
   const customer = sale.customerId ? getCustomerById(sale.customerId) : undefined;
-  const customerPhone = (sale as any).customerPhone || customer?.phone || '';
-  const customerAddress = (sale as any).customerAddress || customer?.address || '';
+  const customerPhone = sale.customerPhone || customer?.phone || '';
+  const customerAddress = sale.customerAddress || customer?.address || '';
   
   const companyAddress = shopSettings.address ? shopSettings.address.split('\n') : [];
   const shopNameText = shopSettings.shopName?.trim()?.toUpperCase() || 'ALI MOBILES';
@@ -214,28 +214,52 @@ export default function InvoiceReceipt({
     lines.push(padText('Payment:', 12) + padText(paymentLabel.toUpperCase(), printWidth - 12, 'right'));
     lines.push('-'.repeat(printWidth));
 
-    const snoWidth = printWidth === 32 ? 3 : 4;
-    const qtyWidth = printWidth === 32 ? 3 : 4;
-    const totalWidth = printWidth === 32 ? 8 : 10;
+    const is58mm = printWidth === 32;
+    const snoWidth = is58mm ? 2 : 3;
+    const qtyWidth = is58mm ? 2 : 3;
+    const priceWidth = is58mm ? 5 : 7;
+    const disWidth = is58mm ? 5 : 7;
+    const totalWidth = is58mm ? 5 : 7;
     const separator = ' ';
-    const productWidth = printWidth - snoWidth - qtyWidth - totalWidth - 3;
+    const productWidth = printWidth - snoWidth - qtyWidth - priceWidth - disWidth - totalWidth - 5;
 
-    const snoHeader = padText('SNo', snoWidth, 'left');
+    const snoHeader = padText('SN', snoWidth, 'left');
     const productHeader = padText('Product', productWidth, 'left');
     const qtyHeader = padText('Qty', qtyWidth, 'right');
-    const totalHeader = padText('Total', totalWidth, 'right');
-    lines.push(snoHeader + separator + productHeader + separator + qtyHeader + separator + totalHeader);
+    const priceHeader = padText('Price', priceWidth, 'right');
+    const disHeader = padText('Dis', disWidth, 'right');
+    const disPrHeader = padText('dis-Pr', totalWidth, 'right');
+    lines.push(snoHeader + separator + productHeader + separator + qtyHeader + separator + priceHeader + separator + disHeader + separator + disPrHeader);
     lines.push('-'.repeat(printWidth));
 
     sale.items.forEach((item, index) => {
       const snoStr = padText(String(index + 1), snoWidth, 'left');
       const nameLines = wrapText(parseProductName(item.productName), productWidth);
       const qtyStr = padText(String(item.quantity), qtyWidth, 'right');
+      const priceStr = padText(formatAmount(item.unitPrice), priceWidth, 'right');
+      const itemDiscVal = item.discountType === 'percent'
+        ? Math.round(item.unitPrice * item.quantity * ((item.discount || 0) / 100))
+        : (item.discount || 0);
+      const disStr = padText(itemDiscVal > 0 ? String(itemDiscVal) : '0', disWidth, 'right');
       const totalStr = padText(formatAmount(item.total), totalWidth, 'right');
 
-      lines.push(snoStr + separator + padText(nameLines[0] || '', productWidth, 'left') + separator + qtyStr + separator + totalStr);
+      lines.push(
+        snoStr + separator + 
+        padText(nameLines[0] || '', productWidth, 'left') + separator + 
+        qtyStr + separator + 
+        priceStr + separator + 
+        disStr + separator + 
+        totalStr
+      );
       for (let i = 1; i < nameLines.length; i++) {
-        lines.push(padText('', snoWidth) + separator + padText(nameLines[i], productWidth, 'left') + separator + padText('', qtyWidth) + separator + padText('', totalWidth));
+        lines.push(
+          padText('', snoWidth) + separator + 
+          padText(nameLines[i], productWidth, 'left') + separator + 
+          padText('', qtyWidth) + separator + 
+          padText('', priceWidth) + separator + 
+          padText('', disWidth) + separator + 
+          padText('', totalWidth)
+        );
       }
     });
     lines.push('-'.repeat(printWidth));
@@ -307,6 +331,24 @@ export default function InvoiceReceipt({
           className
         )}
       >
+        <style dangerouslySetInnerHTML={{ __html: `
+          .sale-items-table {
+            table-layout: fixed !important;
+            width: 100% !important;
+          }
+          .sale-items-table th, .sale-items-table td {
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
+            white-space: normal !important;
+            vertical-align: middle !important;
+          }
+          .sale-items-table td:nth-child(4),
+          .sale-items-table td:nth-child(5),
+          .sale-items-table td:nth-child(6) {
+            white-space: nowrap !important;
+            text-align: right !important;
+          }
+        `}} />
         {/* Header: Logo OR Store Name */}
         {receiptSettings.showLogo ? (
           <div className="mx-auto mb-2 flex items-center justify-center w-20 h-20"> 
@@ -376,37 +418,51 @@ export default function InvoiceReceipt({
         </table>
 
         {/* Items Grid Table */}
-        <table className="items-table w-full border-collapse border border-black text-[10px] my-3">
+        <table className="items-table sale-items-table w-full border-collapse border border-black text-[10px] my-3" style={{ tableLayout: 'fixed' }}>
           <thead>
             <tr className="bg-gray-100 font-bold border-b border-black">
-              <th className="border border-black p-1.5 text-center" style={{ width: '7%', fontFamily: 'Arial, Helvetica, sans-serif' }}>SR</th>
-              <th className="border border-black p-1.5 text-left" style={{ width: '36%', fontFamily: 'Arial, Helvetica, sans-serif' }}>Item Description</th>
-              <th className="border border-black p-1.5 text-center" style={{ width: '13%', fontFamily: 'Arial, Helvetica, sans-serif' }}>Color</th>
-              <th className="border border-black p-1.5 text-center" style={{ width: '18%', fontFamily: 'Arial, Helvetica, sans-serif' }}>R/S</th>
-              <th className="border border-black p-1.5 text-right" style={{ width: '26%', fontFamily: 'Arial, Helvetica, sans-serif' }}>Price</th>
+              <th className="border border-black p-1.5 text-center" style={{ width: '5%', fontFamily: 'Arial, Helvetica, sans-serif' }}>SR</th>
+              <th className="border border-black p-1.5 text-left" style={{ width: '38%', fontFamily: 'Arial, Helvetica, sans-serif' }}>Item Description</th>
+              <th className="border border-black p-1.5 text-center" style={{ width: '12%', fontFamily: 'Arial, Helvetica, sans-serif' }}>Color</th>
+              <th className="border border-black p-1.5 text-right" style={{ width: '15%', fontFamily: 'Arial, Helvetica, sans-serif' }}>Price</th>
+              <th className="border border-black p-1.5 text-right" style={{ width: '15%', fontFamily: 'Arial, Helvetica, sans-serif' }}>Dis</th>
+              <th className="border border-black p-1.5 text-right" style={{ width: '15%', fontFamily: 'Arial, Helvetica, sans-serif' }}>dis-Pr</th>
             </tr>
           </thead>
           <tbody>
             {sale.items.map((item, index) => {
-              const ramStorage = item.ram ? `${item.ram}/${item.storage || '-'}` : item.storage || '-';
+              const itemDiscVal = item.discountType === 'percent'
+                ? Math.round(item.unitPrice * item.quantity * ((item.discount || 0) / 100))
+                : (item.discount || 0);
+
               return (
                 <tr key={index} className="hover:bg-gray-50">
-                  <td className="border border-black p-1.5 text-center" style={{ fontFamily: 'Tahoma, Arial, Helvetica, sans-serif' }}>{index + 1}</td>
-                  <td className="border border-black p-1.5 text-left font-bold uppercase text-[9px]" style={{ fontFamily: 'Times New Roman, Times, serif' }}>
+                  <td className="border border-black p-1.5 text-center" style={{ fontFamily: 'Tahoma, Arial, Helvetica, sans-serif', verticalAlign: 'middle', wordBreak: 'break-word', overflowWrap: 'break-word' }}>{index + 1}</td>
+                  <td className="border border-black p-1.5 text-left font-bold uppercase text-[9px]" style={{ fontFamily: 'Times New Roman, Times, serif', verticalAlign: 'middle', wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                     <div className="break-words">{parseProductName(item.productName)}</div>
                     {item.ptaStatus && (
                       <div className="text-[8px] text-gray-600 font-semibold mt-0.5" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>PTA: {item.ptaStatus}</div>
                     )}
+                    {(item.ram || item.storage) && (
+                      <div className="text-[8px] text-blue-700 font-bold mt-0.5" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+                        {item.ram ? `${item.ram}/${item.storage || '-'}` : item.storage}
+                      </div>
+                    )}
                   </td>
-                  <td className="border border-black p-1.5 text-center uppercase text-[9px]" style={{ fontFamily: 'Times New Roman, Times, serif' }}>{item.color || '-'}</td>
-                  <td className="border border-black p-1.5 text-center uppercase text-[8.5px]" style={{ fontFamily: 'Times New Roman, Times, serif', lineHeight: '1.2' }}>{ramStorage}</td>
-                  <td className="border border-black p-1.5 text-right font-bold text-[10.5px] whitespace-nowrap" style={{ fontFamily: 'Tahoma, Arial, Helvetica, sans-serif' }}>{formatCurrency(item.unitPrice)}</td>
+                  <td className="border border-black p-1.5 text-center text-[9px]" style={{ fontFamily: 'Times New Roman, Times, serif', verticalAlign: 'middle', wordBreak: 'break-word', overflowWrap: 'break-word' }}>{item.color ? (item.color.trim().charAt(0).toUpperCase() + item.color.trim().slice(1).toLowerCase()) : '-'}</td>
+                  <td className="border border-black p-1.5 text-right font-bold text-[10.5px] whitespace-nowrap" style={{ fontFamily: 'Tahoma, Arial, Helvetica, sans-serif', verticalAlign: 'middle' }}>{formatCurrency(item.unitPrice)}</td>
+                  <td className="border border-black p-1.5 text-right font-bold text-[10.5px] text-red-650 whitespace-nowrap" style={{ fontFamily: 'Tahoma, Arial, Helvetica, sans-serif', verticalAlign: 'middle' }}>
+                    {itemDiscVal > 0 ? `-${formatCurrency(itemDiscVal)}` : '0'}
+                  </td>
+                  <td className="border border-black p-1.5 text-right font-bold text-[10.5px] whitespace-nowrap" style={{ fontFamily: 'Tahoma, Arial, Helvetica, sans-serif', verticalAlign: 'middle' }}>
+                    {formatCurrency(item.total)}
+                  </td>
                 </tr>
               );
             })}
             {/* Total summary row */}
             <tr className="bg-gray-100 font-bold border-t border-black">
-              <td className="border border-black p-1.5" colSpan={5}>
+              <td className="border border-black p-1.5" colSpan={6}>
                 <div className="flex items-center justify-between text-[9px]">
                   <span className="font-bold uppercase" style={{ fontFamily: 'Times New Roman, Times, serif' }}>Total Qty : {sale.items.reduce((sum, item) => sum + item.quantity, 0)}</span>
                   <span className="font-bold uppercase" style={{ fontFamily: 'Tahoma, Arial, Helvetica, sans-serif' }}>Total Price : {formatCurrency(sale.subtotal)}</span>
@@ -472,6 +528,14 @@ export default function InvoiceReceipt({
         >
           موبائل فون جس کمپنی کی وارنٹی میں ہو گا وہی کمپنی ذمہ دار ہو گی ۔ دوکاندار وارنٹی کلیم دینے کا پابند نہیں ہوگا
         </div>
+
+        {/* Sale Notes */}
+        {sale.notes && (
+          <div className="border border-dashed border-gray-400 rounded p-2 my-1.5">
+            <span className="text-[8px] font-bold text-gray-500 uppercase block mb-0.5" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>Notes:</span>
+            <p className="text-[9px] text-gray-800 italic leading-tight break-words" style={{ fontFamily: 'Times New Roman, Times, serif' }}>{sale.notes}</p>
+          </div>
+        )}
 
         {/* User Manual Receipt Footer */}
         {receiptSettings.footer && (
