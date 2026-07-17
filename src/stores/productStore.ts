@@ -205,27 +205,13 @@ export const useProductStore = create<ProductState>((set, get) => ({
 
   deleteProduct: async (id) => {
     const imeiStore = useImeiStore.getState();
-    const deletedImeis = imeiStore.deleteImeisByProduct(id);
-
-    const deleteRelatedDbImeis = async () => {
-      const tableNames = ['product_imeis', 'product_imei'];
-      for (const table of tableNames) {
-        try {
-          const { error } = await supabase.from(table).delete().eq('product_id', id);
-          if (error && error.code !== 'PGRST205' && error.code !== '42P01') {
-            console.warn(`Unable to delete related IMEIs from ${table}:`, error);
-          }
-        } catch (err) {
-          console.warn(`Safe delete failed for ${table}:`, err);
-        }
-      }
-    };
+    const deletedImeis = await imeiStore.deleteImeisByProduct(id);
 
     try {
-      await deleteRelatedDbImeis();
       const { error } = await supabase.from('products').delete().eq('id', id);
       if (error) {
-        imeiStore.restoreImeis(deletedImeis);
+        // Restore IMEIs if the product delete failed
+        await imeiStore.restoreImeis(deletedImeis);
         throw error;
       }
       set({ products: get().products.filter(p => p.id !== id) });

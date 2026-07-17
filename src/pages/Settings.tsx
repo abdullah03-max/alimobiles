@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/useToast';
 import { supabase } from '@/lib/supabaseClient';
 import PageHeader from '@/components/shared/PageHeader';
 import DeleteConfirmModal from '@/components/shared/DeleteConfirmModal';
+import MigrateImeis from '@/components/shared/MigrateImeis';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -207,7 +208,6 @@ export default function Settings() {
     try {
       if (typeof window !== 'undefined') {
         const keys = [
-          'pos_product_imeis',
           'pos_products',
           'pos_categories',
           'pos_brands',
@@ -233,7 +233,7 @@ export default function Settings() {
         }
       }
 
-      clearAllImeis();
+      await clearAllImeis();
       clearCart();
       await Promise.all([
         loadProducts(),
@@ -312,6 +312,7 @@ export default function Settings() {
 
       // Execute deletions in order (child tables first)
       const orderedTables = [
+        'product_imeis',
         'sale_items',
         'sales',
         'return_items',
@@ -339,11 +340,10 @@ export default function Settings() {
         }
       }
 
-      // Clear IMEIs stored in localStorage
+      // Clear IMEIs and local storage settings
       setCurrentStep(orderedTables.length);
       try {
         window.localStorage.removeItem('pos_product_imeis');
-        // Also clear any other related keys
         window.localStorage.removeItem('pos_settings');
         window.localStorage.removeItem('pos_receipt_settings');
         window.localStorage.removeItem('pos_tax_settings');
@@ -354,7 +354,7 @@ export default function Settings() {
 
       // Reload app state
       setCurrentStep(orderedTables.length + 1);
-      await Promise.all([loadProducts(), loadSales(), loadCustomers(), loadSuppliers(), loadExpenses()]);
+      await Promise.all([loadProducts(), loadSales(), loadCustomers(), loadSuppliers(), loadExpenses(), loadImeis()]);
 
       toast.success('All business data deleted — system reset to fresh account state');
     } catch (err) {
@@ -494,6 +494,8 @@ export default function Settings() {
           <div className="bg-white rounded-lg border border-red-200">
             <div className="p-4 border-b border-red-100 flex items-center gap-2"><div className="w-1 h-4 bg-red-500 rounded-full" /><h2 className="font-semibold text-red-600">Danger Zone</h2></div>
             <div className="p-4 max-w-lg space-y-4">
+              {/* IMEI Migration Utility */}
+              <MigrateImeis />
               <p className="text-sm text-red-600">Resetting the database will delete all sales, customers, products, suppliers, expenses, and settings. This action cannot be undone.</p>
               <div className="rounded-lg border border-red-100 bg-red-50 p-4">
                 <p className="text-sm font-medium text-red-700">Delete All Business Data</p>
