@@ -7,7 +7,7 @@ import { useExpenseStore } from '@/stores/expenseStore';
 import KpiCard from '@/components/shared/KpiCard';
 import { formatCurrency } from '@/lib/utils';
 import {
-  ShoppingCart, Receipt, Package, AlertTriangle,
+  ShoppingCart, Receipt, Package, AlertTriangle, Wallet,
   ArrowUpRight, ArrowDownRight,
 } from 'lucide-react';
 import {
@@ -44,6 +44,7 @@ export default function Dashboard() {
   const totalProducts = products.length;
   const lowStockItems = products.filter(p => p.stockQuantity <= p.minStockLevel && p.stockQuantity > 0).length;
   const outOfStockItems = products.filter(p => p.stockQuantity <= 0).length;
+  const totalProductsValue = useMemo(() => products.reduce((sum, p) => sum + (p.salePrice * p.stockQuantity), 0), [products]);
 
   // Weekly sales data for chart
   const weeklyData = useMemo(() => {
@@ -84,7 +85,7 @@ export default function Dashboard() {
   return (
     <div>
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
         <KpiCard
           title="Today's Sales"
           value={todayRevenue}
@@ -108,6 +109,14 @@ export default function Dashboard() {
           icon={Package}
           iconBg="bg-green-50"
           iconColor="text-green-500"
+        />
+        <KpiCard
+          title="Products Value"
+          value={totalProductsValue}
+          isCurrency
+          icon={Wallet}
+          iconBg="bg-purple-50"
+          iconColor="text-purple-500"
         />
         <KpiCard
           title="Low Stock Alert"
