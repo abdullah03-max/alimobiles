@@ -24,6 +24,8 @@ const statusMap: Record<string, { label: string; className: string }> = {
   jazzcash: { label: 'JazzCash', className: 'bg-red-50 text-red-600' },
   easypaisa: { label: 'EasyPaisa', className: 'bg-green-50 text-green-700' },
   credit: { label: 'Credit', className: 'bg-orange-50 text-orange-600' },
+  split: { label: 'Split Payment', className: 'bg-indigo-50 text-indigo-600' },
+  open_box: { label: 'Open Box', className: 'bg-amber-50 text-amber-600' },
   new: { label: 'New', className: 'bg-green-50 text-green-600' },
   used: { label: 'Used', className: 'bg-yellow-50 text-yellow-600' },
   refurbished: { label: 'Refurbished', className: 'bg-blue-50 text-blue-600' },

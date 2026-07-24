@@ -58,6 +58,15 @@ export default function Pos() {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodKey>('cash');
   const [paidAmount, setPaidAmount] = useState('');
+  const [isSplitPayment, setIsSplitPayment] = useState(false);
+  const [splitPayments, setSplitPayments] = useState<Record<string, string>>({
+    cash: '',
+    card: '',
+    bank_transfer: '',
+    jazzcash: '',
+    easypaisa: '',
+    credit: '',
+  });
   const [checkoutNotes, setCheckoutNotes] = useState('');
   const [saleComplete, setSaleComplete] = useState(false);
   const [completedSale, setCompletedSale] = useState<(Sale & { customerWhatsApp?: string }) | null>(null);
@@ -231,47 +240,77 @@ export default function Pos() {
     const uid = currentUserId as string;
 
     const total = grandTotal();
-    const paid = parseFloat(paidAmount) || total;
+    
+    // Parse payment details and calculate total paid
+    let paid = total;
+    let pm = paymentMethod;
+    let details: Record<string, number> | undefined = undefined;
+
+    if (isSplitPayment) {
+      const splitDetails: Record<string, number> = {};
+      Object.keys(splitPayments).forEach(k => {
+        const val = parseFloat(splitPayments[k]) || 0;
+        if (val > 0) splitDetails[k] = val;
+      });
+      details = splitDetails;
+      paid = splitPaidTotal;
+
+      // Find the method with the highest amount to satisfy DB constraints
+      let maxMethod: PaymentMethodKey = 'cash';
+      let maxVal = -1;
+      Object.keys(splitDetails).forEach(k => {
+        if (splitDetails[k] > maxVal) {
+          maxVal = splitDetails[k];
+          maxMethod = k as PaymentMethodKey;
+        }
+      });
+      pm = maxMethod;
+    } else {
+      paid = parseFloat(paidAmount) || total;
+      details = { [paymentMethod]: paid };
+    }
+
     const change = paid > total ? paid - total : 0;
-      const saleStatus = paid >= total ? 'paid' : paid === 0 ? 'pending' : 'partial';
+    const saleStatus = paid >= total ? 'paid' : paid === 0 ? 'pending' : 'partial';
 
-      try {
-        setCheckoutLoading(true);
+    try {
+      setCheckoutLoading(true);
 
-        const { sale, errorMessage } = await addSale({
-          customerId: selectedCustomerId,
-          customerName: selectedCustomerName,
-          createdBy: uid,
-          items: cartItems.map(i => {
-            const discAmt = i.discountType === 'percent'
-              ? Math.round((i.quantity * i.unitPrice) * ((i.discount || 0) / 100))
-              : (i.discount || 0);
-            return {
-              productId: i.productId,
-              productName: i.productName,
-              quantity: i.quantity,
-              unitPrice: i.unitPrice,
-              total: i.total - discAmt,
-              imei: i.imei,
-              imei1: i.imei1,
-              imei2: i.imei2,
-              color: i.color,
-              ram: i.ram,
-              storage: i.storage,
-              ptaStatus: i.ptaStatus,
-              discount: i.discount || 0,
-              discountType: i.discountType || 'amount',
-            };
-          }),
-          subtotal: subtotal(),
-          discount: discountAmountValue,
-          tax: 0,
-          grandTotal: total,
-          paidAmount: paid,
-          changeDue: change,
-          paymentMethod,
-          status: saleStatus,
-        });
+      const { sale, errorMessage } = await addSale({
+        customerId: selectedCustomerId,
+        customerName: selectedCustomerName,
+        createdBy: uid,
+        items: cartItems.map(i => {
+          const discAmt = i.discountType === 'percent'
+            ? Math.round((i.quantity * i.unitPrice) * ((i.discount || 0) / 100))
+            : (i.discount || 0);
+          return {
+            productId: i.productId,
+            productName: i.productName,
+            quantity: i.quantity,
+            unitPrice: i.unitPrice,
+            total: i.total - discAmt,
+            imei: i.imei,
+            imei1: i.imei1,
+            imei2: i.imei2,
+            color: i.color,
+            ram: i.ram,
+            storage: i.storage,
+            ptaStatus: i.ptaStatus,
+            discount: i.discount || 0,
+            discountType: i.discountType || 'amount',
+          };
+        }),
+        subtotal: subtotal(),
+        discount: discountAmountValue,
+        tax: 0,
+        grandTotal: total,
+        paidAmount: paid,
+        changeDue: change,
+        paymentMethod: pm,
+        paymentDetails: details,
+        status: saleStatus,
+      });
 
       if (!sale) {
         toast.error('Sale not completed', errorMessage || 'Unable to save the sale. Please try again.');
@@ -455,6 +494,15 @@ export default function Pos() {
     setSaleComplete(false);
     setCompletedSale(null);
     setPaidAmount('');
+    setIsSplitPayment(false);
+    setSplitPayments({
+      cash: '',
+      card: '',
+      bank_transfer: '',
+      jazzcash: '',
+      easypaisa: '',
+      credit: '',
+    });
     setCheckoutNotes('');
     setDiscountPercentInput('');
     setDiscountAmountInput('');
@@ -462,7 +510,23 @@ export default function Pos() {
     setSelectedCustomerWhatsApp('');
   };
 
-  const changeDue = (parseFloat(paidAmount) || 0) - grandTotal();
+  const splitPaidTotal = useMemo(() => {
+    return Object.keys(splitPayments).reduce((sum, k) => sum + (parseFloat(splitPayments[k]) || 0), 0);
+  }, [splitPayments]);
+
+  const fillRemainingSplitAmount = (key: string) => {
+    const total = grandTotal();
+    const otherPaid = Object.keys(splitPayments).reduce((sum, k) => {
+      if (k === key) return sum;
+      return sum + (parseFloat(splitPayments[k]) || 0);
+    }, 0);
+    const remaining = Math.max(0, total - otherPaid);
+    setSplitPayments(prev => ({ ...prev, [key]: String(remaining) }));
+  };
+
+  const changeDue = isSplitPayment 
+    ? splitPaidTotal - grandTotal()
+    : (parseFloat(paidAmount) || 0) - grandTotal();
 
   useEffect(() => {
     setDiscountPercentInput(discountPercentValue > 0 ? String(discountPercentValue) : '');
@@ -787,6 +851,15 @@ export default function Pos() {
               onClick={() => {
                 setCheckoutOpen(true);
                 setPaidAmount(String(grandTotal()));
+                setIsSplitPayment(false);
+                setSplitPayments({
+                  cash: '',
+                  card: '',
+                  bank_transfer: '',
+                  jazzcash: '',
+                  easypaisa: '',
+                  credit: '',
+                });
               }}
               disabled={cartItems.length === 0}
               className="w-full mt-3 h-12 bg-orange-500 hover:bg-orange-600 text-base font-semibold"
@@ -810,54 +883,129 @@ export default function Pos() {
                 <DialogTitle>Checkout</DialogTitle>
               </DialogHeader>
 
-              {/* Payment Method */}
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Payment Method</label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {enabledPaymentMethods.length > 0 && enabledPaymentMethods.map(({ value, label, icon: Icon }) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setPaymentMethod(value)}
-                      className={cn(
-                        'flex flex-col items-center gap-1 p-3 rounded-lg border-2 transition-colors',
-                        paymentMethod === value
-                          ? 'border-orange-500 bg-orange-50 text-orange-600'
-                          : 'border-gray-200 hover:border-gray-300 text-gray-600'
-                      )}
-                    >
-                      <Icon className="w-5 h-5" />
-                      <span className="text-xs font-medium">{label}</span>
-                    </button>
-                  ))}
+              {/* Split Payment Toggle */}
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div>
+                  <label className="text-xs font-semibold text-gray-750 block">Split Payment (Multiple Methods)</label>
+                  <span className="text-[10px] text-gray-400">Pay using cash, card, bank, etc. together</span>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={isSplitPayment}
+                    onChange={(e) => {
+                      setIsSplitPayment(e.target.checked);
+                      if (e.target.checked) {
+                        setSplitPayments({
+                          cash: '',
+                          card: '',
+                          bank_transfer: '',
+                          jazzcash: '',
+                          easypaisa: '',
+                          credit: '',
+                        });
+                      } else {
+                        setPaidAmount(String(grandTotal()));
+                      }
+                    }}
+                    className="w-4 h-4 text-orange-500 focus:ring-orange-500 accent-orange-500 cursor-pointer"
+                  />
                 </div>
               </div>
 
-              {/* Amount */}
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Amount Tendered</label>
-                <Input
-                  type="number"
-                  value={paidAmount}
-                  onChange={(e) => setPaidAmount(e.target.value)}
-                  className="text-lg h-12"
-                />
-                <div className="flex gap-2 mt-2">
-                  {['Exact', '+50', '+100', '+500', '+1000'].map(quick => (
-                    <button
-                      key={quick}
-                      type="button"
-                      onClick={() => {
-                        if (quick === 'Exact') setPaidAmount(String(grandTotal()));
-                        else setPaidAmount(String((parseFloat(paidAmount) || 0) + parseInt(quick.replace('+', ''))));
-                      }}
-                      className="px-3 py-1 text-xs bg-gray-100 rounded-md hover:bg-gray-200 text-gray-700"
-                    >
-                      {quick}
-                    </button>
-                  ))}
+              {!isSplitPayment ? (
+                <>
+                  {/* Payment Method */}
+                  <div>
+                    <label className="text-sm font-medium text-gray-705 mb-2 block">Payment Method</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {enabledPaymentMethods.length > 0 && enabledPaymentMethods.map(({ value, label, icon: Icon }) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setPaymentMethod(value)}
+                          className={cn(
+                            'flex flex-col items-center gap-1 p-3 rounded-lg border-2 transition-colors',
+                            paymentMethod === value
+                              ? 'border-orange-500 bg-orange-50 text-orange-600'
+                              : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                          )}
+                        >
+                          <Icon className="w-5 h-5" />
+                          <span className="text-xs font-medium">{label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Amount */}
+                  <div>
+                    <label className="text-sm font-medium text-gray-755 mb-2 block">Amount Tendered</label>
+                    <Input
+                      type="number"
+                      value={paidAmount}
+                      onChange={(e) => setPaidAmount(e.target.value)}
+                      className="text-lg h-12"
+                    />
+                    <div className="flex gap-2 mt-2">
+                      {['Exact', '+50', '+100', '+500', '+1000'].map(quick => (
+                        <button
+                          key={quick}
+                          type="button"
+                          onClick={() => {
+                            if (quick === 'Exact') setPaidAmount(String(grandTotal()));
+                            else setPaidAmount(String((parseFloat(paidAmount) || 0) + parseInt(quick.replace('+', ''))));
+                          }}
+                          className="px-3 py-1 text-xs bg-gray-100 rounded-md hover:bg-gray-200 text-gray-700"
+                        >
+                          {quick}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* Split Payment Methods Grid */
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-gray-700 block border-b pb-1.5 uppercase tracking-wider">Split Breakdown</label>
+                  <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                    {enabledPaymentMethods.map(({ value, label, icon: Icon }) => (
+                      <div key={value} className="flex items-center gap-2 p-2 bg-white border border-gray-150 rounded-lg shadow-sm">
+                        <div className="flex items-center gap-1.5 w-28 text-gray-600">
+                          <Icon className="w-4 h-4 text-gray-500" />
+                          <span className="text-xs font-semibold">{label}</span>
+                        </div>
+                        <div className="flex-1 relative">
+                          <Input
+                            type="number"
+                            min="0"
+                            placeholder="0"
+                            value={splitPayments[value]}
+                            onChange={(e) => setSplitPayments(prev => ({ ...prev, [value]: e.target.value }))}
+                            className="h-8 text-xs pr-12"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => fillRemainingSplitAmount(value)}
+                            className="absolute right-1 top-1 h-6 px-2 text-[10px] font-bold text-orange-500 hover:text-orange-600 bg-orange-50 hover:bg-orange-100 rounded border border-orange-200"
+                            title="Fill Remaining Amount"
+                          >
+                            Fill
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="bg-gray-50 rounded-lg p-2.5 border border-dashed text-right text-xs">
+                    <span className="text-gray-500 font-medium">Total Paid: </span>
+                    <span className="font-bold text-gray-800 text-sm">{formatCurrency(splitPaidTotal)}</span>
+                    <span className="text-gray-400 mx-1.5">|</span>
+                    <span className="text-gray-500 font-medium">Grand Total: </span>
+                    <span className="font-bold text-orange-500 text-sm">{formatCurrency(grandTotal())}</span>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Change */}
               {changeDue >= 0 && (
@@ -1020,7 +1168,15 @@ export default function Pos() {
                     }}
                     className="w-full text-left px-3 py-2 text-sm hover:bg-orange-50 hover:text-orange-600 transition-colors font-mono flex items-center justify-between"
                   >
-                    <span>{record.imei}</span>
+                    <div className="flex flex-col">
+                      <span className="font-semibold">{record.imei}</span>
+                      {(record.color || record.ram || record.storage) && (
+                        <span className="text-[10px] text-gray-500 font-sans mt-0.5">
+                          {record.color ? `Color: ${record.color}` : ''}
+                          {record.ram || record.storage ? ` | Variant: ${record.ram || ''}/${record.storage || ''}` : ''}
+                        </span>
+                      )}
+                    </div>
                     <span className="text-[10px] bg-green-50 text-green-700 px-2 py-0.5 rounded-full font-sans font-medium">Available</span>
                   </button>
                 ))}

@@ -97,7 +97,7 @@ export default function Sales() {
               <td className="px-4 py-3 text-gray-800">{s.customerName}</td>
               <td className="px-4 py-3 text-center">{s.items.length}</td>
               <td className="px-4 py-3 text-right font-medium">{formatCurrency(s.grandTotal)}</td>
-              <td className="px-4 py-3 text-center"><StatusBadge status={s.paymentMethod} /></td>
+              <td className="px-4 py-3 text-center"><StatusBadge status={s.paymentDetails && Object.keys(s.paymentDetails).length > 1 ? 'split' : s.paymentMethod} /></td>
               <td className="px-4 py-3 text-center"><StatusBadge status={s.status} /></td>
               <td className="px-4 py-3 text-center">
                 <div className="inline-flex items-center justify-center gap-1">

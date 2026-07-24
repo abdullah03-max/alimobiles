@@ -84,6 +84,21 @@ export const useCartStore = create<CartState>((set, get) => ({
       const ram = imeiRecord?.ram || productRams[0] || product?.ram || '';
       const storage = imeiRecord?.storage || productStorages[0] || product?.storage || '';
 
+      // Resolve variant sale price if available
+      let unitPrice = product.salePrice;
+      if (product?.description?.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(product.description);
+          const matchedVariant = (parsed.variants || []).find((v: any) => 
+            v.ram?.trim().toLowerCase() === ram.trim().toLowerCase() && 
+            v.storage?.trim().toLowerCase() === storage.trim().toLowerCase()
+          );
+          if (matchedVariant && typeof matchedVariant.salePrice === 'number') {
+            unitPrice = matchedVariant.salePrice;
+          }
+        } catch (e) {}
+      }
+
       // derive brand name and model when possible
       const brand = useProductStore.getState().getBrandById(product.brandId);
       const category = useProductStore.getState().getCategoryById(product.categoryId);
@@ -102,8 +117,8 @@ export const useCartStore = create<CartState>((set, get) => ({
         model,
         storage,
         quantity: 1,
-        unitPrice: product.salePrice,
-        total: product.salePrice,
+        unitPrice: unitPrice,
+        total: unitPrice,
         maxStock: 1,
         imei: itemImei,
         imei1,
@@ -143,6 +158,21 @@ export const useCartStore = create<CartState>((set, get) => ({
       const ram = productRams[0] || product?.ram || '';
       const storage = productStorages[0] || product?.storage || '';
 
+      // Resolve variant sale price if available
+      let unitPrice = product.salePrice;
+      if (product?.description?.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(product.description);
+          const matchedVariant = (parsed.variants || []).find((v: any) => 
+            v.ram?.trim().toLowerCase() === ram.trim().toLowerCase() && 
+            v.storage?.trim().toLowerCase() === storage.trim().toLowerCase()
+          );
+          if (matchedVariant && typeof matchedVariant.salePrice === 'number') {
+            unitPrice = matchedVariant.salePrice;
+          }
+        } catch (e) {}
+      }
+
       const newItem: CartItem = {
         productId: product.id,
         productName: product.name,
@@ -150,8 +180,8 @@ export const useCartStore = create<CartState>((set, get) => ({
         model,
         storage,
         quantity: 1,
-        unitPrice: product.salePrice,
-        total: product.salePrice,
+        unitPrice: unitPrice,
+        total: unitPrice,
         maxStock: product.stockQuantity,
         color,
         ram,

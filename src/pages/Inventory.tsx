@@ -157,7 +157,26 @@ export default function Inventory() {
       totalItems += p.totalQuantity;
       availableItems += p.availableStock;
       soldItems += p.soldStock;
-      totalValue += p.availableStock * p.costPrice;
+      if (p.availableImeis && p.availableImeis.length > 0) {
+        p.availableImeis.forEach((imei: any) => {
+          let imeiCost = p.costPrice;
+          if (p.description && p.description.startsWith('{')) {
+            try {
+              const parsed = JSON.parse(p.description);
+              const matchedVariant = (parsed.variants || []).find((v: any) => 
+                v.ram?.trim().toLowerCase() === (imei.ram || '').trim().toLowerCase() && 
+                v.storage?.trim().toLowerCase() === (imei.storage || '').trim().toLowerCase()
+              );
+              if (matchedVariant && typeof matchedVariant.costPrice === 'number') {
+                imeiCost = matchedVariant.costPrice;
+              }
+            } catch (e) {}
+          }
+          totalValue += imeiCost;
+        });
+      } else {
+        totalValue += p.availableStock * p.costPrice;
+      }
 
       const status = getStockStatus(p.availableStock, p.minStockLevel);
       if (status === 'low_stock') {
@@ -441,9 +460,16 @@ export default function Inventory() {
                                     className="bg-white rounded-lg border border-gray-200 p-3 shadow-xs flex flex-col justify-between gap-2 hover:border-gray-300 transition"
                                   >
                                     <div className="flex items-center justify-between">
-                                      <span className="font-mono text-sm font-bold text-gray-900 select-all">
-                                        {imei.imei}
-                                      </span>
+                                      <div className="flex flex-col">
+                                        <span className="font-mono text-sm font-bold text-gray-900 select-all">
+                                          {imei.imei}
+                                        </span>
+                                        {(imei.ram || imei.storage) && (
+                                          <span className="text-[10px] text-gray-500 font-medium font-sans mt-0.5">
+                                            {imei.ram ? `${imei.ram}/${imei.storage || '-'}` : imei.storage}
+                                          </span>
+                                        )}
+                                      </div>
                                       <span
                                         className={cn(
                                           'px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1',

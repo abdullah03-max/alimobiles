@@ -65,7 +65,23 @@ export default function Reports() {
   }, [expenses]);
 
   const totalRevenue = filteredSales.reduce((s, sa) => s + sa.grandTotal, 0);
-  const totalCost = filteredSales.reduce((s, sa) => s + sa.items.reduce((is, i) => is + (products.find(p => p.id === i.productId)?.costPrice || 0) * i.quantity, 0), 0);
+  const totalCost = filteredSales.reduce((s, sa) => s + sa.items.reduce((is, i) => {
+    const p = products.find(prod => prod.id === i.productId);
+    let itemCost = p?.costPrice || 0;
+    if (p?.description?.startsWith('{') && (i.ram || i.storage)) {
+      try {
+        const parsed = JSON.parse(p.description);
+        const matchedVariant = (parsed.variants || []).find((v: any) => 
+          v.ram?.trim().toLowerCase() === (i.ram || '').trim().toLowerCase() && 
+          v.storage?.trim().toLowerCase() === (i.storage || '').trim().toLowerCase()
+        );
+        if (matchedVariant && typeof matchedVariant.costPrice === 'number') {
+          itemCost = matchedVariant.costPrice;
+        }
+      } catch (e) {}
+    }
+    return is + (itemCost * i.quantity);
+  }, 0), 0);
   const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
   const grossProfit = totalRevenue - totalCost;
   const netProfit = grossProfit - totalExpenses;

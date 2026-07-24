@@ -158,13 +158,28 @@ export default function Purchases() {
       modelName = product.name.substring(brand.name.length).trim();
     }
 
+    // Resolve variant cost price if available
+    let unitCost = product.costPrice;
+    if (product.description && product.description.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(product.description);
+        const matchedVariant = (parsed.variants || []).find((v: any) => 
+          v.ram?.trim().toLowerCase() === (inventoryImei.ram || '').trim().toLowerCase() && 
+          v.storage?.trim().toLowerCase() === (inventoryImei.storage || '').trim().toLowerCase()
+        );
+        if (matchedVariant && typeof matchedVariant.costPrice === 'number') {
+          unitCost = matchedVariant.costPrice;
+        }
+      } catch (e) {}
+    }
+
     // Add product to the invoice list
     const newItem: ScannedPurchaseItem = {
       productId: product.id,
       productName: product.name,
       quantity: 1,
-      unitCost: product.costPrice,
-      total: product.costPrice,
+      unitCost: unitCost,
+      total: unitCost,
       imei: query,
       color: inventoryImei.color || product.color,
       storage: inventoryImei.storage || product.storage,

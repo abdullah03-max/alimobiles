@@ -83,6 +83,7 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
         tax: editedSale.tax,
         subtotal: editedSale.subtotal,
         grandTotal: editedSale.grandTotal,
+        paymentDetails: editedSale.paymentDetails,
       });
 
       const { error: delErr } = await supabase.from('sale_items').delete().eq('sale_id', editedSale.id);
@@ -170,6 +171,7 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
         tax: editedSale.tax,
         subtotal: editedSale.subtotal,
         grandTotal: editedSale.grandTotal,
+        paymentDetails: editedSale.paymentDetails,
       });
 
       // Replace sale_items for this sale

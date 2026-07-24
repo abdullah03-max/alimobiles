@@ -13,6 +13,7 @@ import ProductImeis from '@/pages/ProductImeis';
 import Categories from '@/pages/Categories';
 import Suppliers from '@/pages/Suppliers';
 import Purchases from '@/pages/Purchases';
+import BuyBack from '@/pages/BuyBack';
 import Customers from '@/pages/Customers';
 import Returns from '@/pages/Returns';
 import DuePayments from '@/pages/DuePayments';
@@ -77,6 +78,7 @@ export default function App() {
         {/* Brands, Units and Inventory routes removed */}
         <Route path="/suppliers" element={<Suppliers />} />
         <Route path="/purchases" element={<Purchases />} />
+        <Route path="/buy-back" element={<BuyBack />} />
         <Route path="/customers" element={<Customers />} />
         <Route path="/returns" element={<Returns />} />
         <Route path="/due-payments" element={<DuePayments />} />

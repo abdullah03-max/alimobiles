@@ -20,7 +20,7 @@ type Product = {
   unitId: string;
   image?: string;
   status: 'active' | 'inactive';
-  condition: 'new' | 'used' | 'refurbished';
+  condition: 'new' | 'used' | 'refurbished' | 'open_box';
   showInPos: boolean;
   createdAt: string;
   updatedAt: string;
@@ -139,6 +139,7 @@ type Sale = {
   paidAmount: number;
   changeDue: number;
   paymentMethod: 'cash' | 'card' | 'bank_transfer' | 'jazzcash' | 'easypaisa' | 'credit';
+  paymentDetails?: Record<string, number>;
   status: 'paid' | 'pending' | 'partial' | 'cancelled';
   notes?: string;
   createdAt: string;

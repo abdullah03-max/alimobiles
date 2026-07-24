@@ -44,9 +44,14 @@ export default function AddProduct() {
   const [customModel, setCustomModel] = useState('');
   
   // Predefined variants state
-  const [variantsList, setVariantsList] = useState<{ ram: string; storage: string }[]>([]);
+  const [variantsList, setVariantsList] = useState<{ ram: string; storage: string; costPrice: number; salePrice: number; wholesalePrice: number }[]>([]);
   const [selectedRam, setSelectedRam] = useState('');
   const [selectedStorage, setSelectedStorage] = useState('');
+  const [expandedVariants, setExpandedVariants] = useState<Record<number, boolean>>({});
+
+  const handleVariantPriceChange = (index: number, key: 'costPrice' | 'salePrice' | 'wholesalePrice', value: number) => {
+    setVariantsList(prev => prev.map((v, i) => i === index ? { ...v, [key]: value } : v));
+  };
 
   // Colors multi-select states
   const [colorsList, setColorsList] = useState<string[]>([]);
@@ -74,13 +79,19 @@ export default function AddProduct() {
     // Parse description for colors, variants and PTA status
     let descriptionText = product.description || '';
     let parsedColors: string[] = [];
-    let parsedVariants: { ram: string; storage: string }[] = [];
+    let parsedVariants: { ram: string; storage: string; costPrice: number; salePrice: number; wholesalePrice: number }[] = [];
     let parsedPtaStatus: 'approved' | 'non-approved' = 'approved';
     if (descriptionText.startsWith('{')) {
       try {
         const parsed = JSON.parse(descriptionText);
         parsedColors = parsed.colors || [];
-        parsedVariants = parsed.variants || [];
+        parsedVariants = (parsed.variants || []).map((v: any) => ({
+          ram: v.ram || '',
+          storage: v.storage || '',
+          costPrice: typeof v.costPrice === 'number' ? v.costPrice : (product.costPrice || 0),
+          salePrice: typeof v.salePrice === 'number' ? v.salePrice : (product.salePrice || 0),
+          wholesalePrice: typeof v.wholesalePrice === 'number' ? v.wholesalePrice : (product.wholesalePrice || 0)
+        }));
         parsedPtaStatus = parsed.ptaStatus || 'approved';
         descriptionText = parsed.text || '';
       } catch (e) {
@@ -172,7 +183,14 @@ export default function AddProduct() {
     if (ram && storage) {
       const exists = variantsList.some(v => v.ram.toLowerCase() === ram.toLowerCase() && v.storage.toLowerCase() === storage.toLowerCase());
       if (!exists) {
-        setVariantsList([...variantsList, { ram, storage }]);
+        setVariantsList([...variantsList, { 
+          ram, 
+          storage,
+          costPrice: form.costPrice || 0,
+          salePrice: form.salePrice || 0,
+          wholesalePrice: form.wholesalePrice || 0
+        }]);
+        setExpandedVariants(prev => ({ ...prev, [variantsList.length]: true }));
       } else {
         toast.warning('Duplicate variant', 'This RAM / Storage combination already exists.');
       }
@@ -219,12 +237,34 @@ export default function AddProduct() {
       text: form.description
     });
 
+    // Validate variant prices
+    if (variantsList.length > 0) {
+      for (const v of variantsList) {
+        if (typeof v.costPrice !== 'number' || v.costPrice < 0) {
+          toast.error('Invalid Price', `Cost Price for variant ${v.ram}/${v.storage} cannot be negative.`);
+          return;
+        }
+        if (typeof v.salePrice !== 'number' || v.salePrice < 0) {
+          toast.error('Invalid Price', `Sale Price for variant ${v.ram}/${v.storage} cannot be negative.`);
+          return;
+        }
+        if (v.wholesalePrice !== undefined && v.wholesalePrice < 0) {
+          toast.error('Invalid Price', `Wholesale Price for variant ${v.ram}/${v.storage} cannot be negative.`);
+          return;
+        }
+      }
+    }
+
+    const firstVariant = variantsList[0];
     const submissionForm = {
       ...form,
       brandId: brandIdToUse,
       description: descriptionPayload,
       storage: variantsList.length > 0 ? variantsList.map(v => v.storage).join(', ') : form.storage,
       ram: variantsList.length > 0 ? variantsList.map(v => v.ram).join(', ') : form.ram,
+      costPrice: firstVariant ? firstVariant.costPrice : form.costPrice,
+      salePrice: firstVariant ? firstVariant.salePrice : form.salePrice,
+      wholesalePrice: firstVariant ? firstVariant.wholesalePrice : form.wholesalePrice,
       stockQuantity: isEdit ? form.stockQuantity : 0, 
     };
 
@@ -370,6 +410,25 @@ export default function AddProduct() {
               </div>
             </div>
 
+            <div className="space-y-1.5 pt-1">
+              <Label className="text-xs font-semibold text-gray-750">Condition *</Label>
+              <div className="flex gap-4 items-center">
+                {['new', 'used', 'open_box', 'refurbished'].map(c => (
+                  <label key={c} className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-gray-800 capitalize">
+                    <input
+                      type="radio"
+                      name="condition"
+                      value={c}
+                      checked={form.condition === c}
+                      onChange={() => handleChange('condition', c)}
+                      className="w-4 h-4 text-orange-500 border-gray-350 focus:ring-orange-500 accent-orange-500"
+                    />
+                    {c === 'open_box' ? 'Open Box' : c}
+                  </label>
+                ))}
+              </div>
+            </div>
+
             {/* Predefined Color Options */}
             <div className="space-y-2 border-t pt-4">
               <div>
@@ -485,38 +544,114 @@ export default function AddProduct() {
               <h2 className="font-semibold">Pricing & Inventory</h2>
             </div>
             <div className="p-4 space-y-4">
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <Label>Cost Price *</Label>
-                  <Input type="number" value={form.costPrice || ''} onChange={e => handleChange('costPrice', parseFloat(e.target.value) || 0)} className={cn('h-9 bg-white', errors.costPrice && 'border-red-500')} />
-                  {errors.costPrice && <p className="text-xs text-red-500 mt-1">{errors.costPrice}</p>}
-                </div>
-                <div>
-                  <Label>Sale Price *</Label>
-                  <Input type="number" value={form.salePrice || ''} onChange={e => handleChange('salePrice', parseFloat(e.target.value) || 0)} className={cn('h-9 bg-white', errors.salePrice && 'border-red-500')} />
-                  {errors.salePrice && <p className="text-xs text-red-500 mt-1">{errors.salePrice}</p>}
-                </div>
-                <div>
-                  <Label>Wholesale Price</Label>
-                  <Input type="number" value={form.wholesalePrice || ''} onChange={e => handleChange('wholesalePrice', parseFloat(e.target.value) || 0)} className="h-9 bg-white" />
-                </div>
-              </div>
+              {variantsList.length === 0 ? (
+                <>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <Label>Cost Price *</Label>
+                      <Input type="number" value={form.costPrice || ''} onChange={e => handleChange('costPrice', parseFloat(e.target.value) || 0)} className={cn('h-9 bg-white', errors.costPrice && 'border-red-500')} />
+                      {errors.costPrice && <p className="text-xs text-red-500 mt-1">{errors.costPrice}</p>}
+                    </div>
+                    <div>
+                      <Label>Sale Price *</Label>
+                      <Input type="number" value={form.salePrice || ''} onChange={e => handleChange('salePrice', parseFloat(e.target.value) || 0)} className={cn('h-9 bg-white', errors.salePrice && 'border-red-500')} />
+                      {errors.salePrice && <p className="text-xs text-red-500 mt-1">{errors.salePrice}</p>}
+                    </div>
+                    <div>
+                      <Label>Wholesale Price</Label>
+                      <Input type="number" value={form.wholesalePrice || ''} onChange={e => handleChange('wholesalePrice', parseFloat(e.target.value) || 0)} className="h-9 bg-white" />
+                    </div>
+                  </div>
 
-              {/* Profit margin indicators */}
-              <div className="grid grid-cols-2 gap-3 p-3 bg-gray-50 rounded-lg border">
-                <div>
-                  <p className="text-xs text-gray-500 font-medium">Profit Margin</p>
-                  <p className={cn('text-lg font-bold mt-0.5', profit.amount >= 0 ? 'text-green-600' : 'text-red-600')}>
-                    {formatCurrency(profit.amount)}
-                  </p>
+                  {/* Profit margin indicators */}
+                  <div className="grid grid-cols-2 gap-3 p-3 bg-gray-50 rounded-lg border">
+                    <div>
+                      <p className="text-xs text-gray-500 font-medium">Profit Margin</p>
+                      <p className={cn('text-lg font-bold mt-0.5', profit.amount >= 0 ? 'text-green-600' : 'text-red-600')}>
+                        {formatCurrency(profit.amount)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 font-medium">Margin Percentage</p>
+                      <p className={cn('text-lg font-bold mt-0.5', profit.amount >= 0 ? 'text-green-600' : 'text-red-600')}>
+                        {profit.margin.toFixed(1)}%
+                      </p>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-4">
+                  {variantsList.map((v, idx) => {
+                    const varProfit = calculateProfit(v.costPrice || 0, v.salePrice || 0);
+                    const isExpanded = expandedVariants[idx] ?? true;
+                    return (
+                      <div key={idx} className="border rounded-lg overflow-hidden bg-white">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedVariants(prev => ({ ...prev, [idx]: !isExpanded }))}
+                          className="w-full flex items-center justify-between p-3 bg-gray-50 border-b font-medium text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            {isExpanded ? '▼' : '►'} Price for {v.ram} / {v.storage}
+                          </span>
+                          <span className="text-xs text-gray-500 font-semibold">
+                            Sale: {formatCurrency(v.salePrice || 0)}
+                          </span>
+                        </button>
+                        {isExpanded && (
+                          <div className="p-3 space-y-3">
+                            <div className="grid grid-cols-3 gap-3">
+                              <div>
+                                <Label>Cost Price *</Label>
+                                <Input
+                                  type="number"
+                                  value={v.costPrice || ''}
+                                  onChange={e => handleVariantPriceChange(idx, 'costPrice', parseFloat(e.target.value) || 0)}
+                                  className="h-9 bg-white"
+                                />
+                              </div>
+                              <div>
+                                <Label>Sale Price *</Label>
+                                <Input
+                                  type="number"
+                                  value={v.salePrice || ''}
+                                  onChange={e => handleVariantPriceChange(idx, 'salePrice', parseFloat(e.target.value) || 0)}
+                                  className="h-9 bg-white"
+                                />
+                              </div>
+                              <div>
+                                <Label>Wholesale Price</Label>
+                                <Input
+                                  type="number"
+                                  value={v.wholesalePrice || ''}
+                                  onChange={e => handleVariantPriceChange(idx, 'wholesalePrice', parseFloat(e.target.value) || 0)}
+                                  className="h-9 bg-white"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Profit margin indicators */}
+                            <div className="grid grid-cols-2 gap-3 p-2.5 bg-gray-50 rounded-lg border text-xs">
+                              <div>
+                                <p className="text-gray-500 font-semibold">Profit Margin</p>
+                                <p className={cn('text-sm font-bold mt-0.5', varProfit.amount >= 0 ? 'text-green-600' : 'text-red-600')}>
+                                  {formatCurrency(varProfit.amount)}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-gray-500 font-semibold">Margin Percentage</p>
+                                <p className={cn('text-sm font-bold mt-0.5', varProfit.amount >= 0 ? 'text-green-600' : 'text-red-600')}>
+                                  {varProfit.margin.toFixed(1)}%
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-medium">Margin Percentage</p>
-                  <p className={cn('text-lg font-bold mt-0.5', profit.amount >= 0 ? 'text-green-600' : 'text-red-600')}>
-                    {profit.margin.toFixed(1)}%
-                  </p>
-                </div>
-              </div>
+              )}
 
               <div>
                 <Label>Min Stock Level</Label>

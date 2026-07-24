@@ -22,6 +22,7 @@ export default function ProductImeis() {
   const [imeiInput1, setImeiInput1] = useState('');
   const [imeiInput2, setImeiInput2] = useState('');
   const [selectedColor, setSelectedColor] = useState('');
+  const [selectedVariantIdx, setSelectedVariantIdx] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [expandedColors, setExpandedColors] = useState<Record<string, boolean>>({});
@@ -46,6 +47,28 @@ export default function ProductImeis() {
   const availableImeis = getAvailableByProduct(productId);
   const soldImeis = productImeis.filter((item) => item.status === 'sold');
 
+  const totalStockValue = useMemo(() => {
+    if (!product) return 0;
+    let sum = 0;
+    availableImeis.forEach(imei => {
+      let salePrice = product.salePrice;
+      if (product.description && product.description.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(product.description);
+          const matchedVariant = (parsed.variants || []).find((v: any) => 
+            v.ram?.trim().toLowerCase() === (imei.ram || '').trim().toLowerCase() && 
+            v.storage?.trim().toLowerCase() === (imei.storage || '').trim().toLowerCase()
+          );
+          if (matchedVariant && typeof matchedVariant.salePrice === 'number') {
+            salePrice = matchedVariant.salePrice;
+          }
+        } catch (e) {}
+      }
+      sum += salePrice;
+    });
+    return sum;
+  }, [availableImeis, product]);
+
   // Parse predefined colors list from description field
   const availableColors = useMemo(() => {
     if (!product || !product.description) return [];
@@ -53,6 +76,20 @@ export default function ProductImeis() {
       try {
         const parsed = JSON.parse(product.description);
         return (parsed.colors || []) as string[];
+      } catch (e) {
+        // fallback
+      }
+    }
+    return [];
+  }, [product]);
+
+  // Parse predefined variants list from description field
+  const availableVariants = useMemo(() => {
+    if (!product || !product.description) return [];
+    if (product.description.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(product.description);
+        return (parsed.variants || []) as { ram: string; storage: string }[];
       } catch (e) {
         // fallback
       }
@@ -115,8 +152,22 @@ export default function ProductImeis() {
       return;
     }
 
+    let ramToUse: string | undefined;
+    let storageToUse: string | undefined;
+
+    if (availableVariants.length > 0) {
+      if (!selectedVariantIdx) {
+        setError('Select a variant');
+        toast.error('Variant required', 'Please select a RAM / Storage variant');
+        return;
+      }
+      const variantObj = availableVariants[parseInt(selectedVariantIdx)];
+      ramToUse = variantObj.ram;
+      storageToUse = variantObj.storage;
+    }
+
     setLoading(true);
-    const added = await addImei(productId, first, second, selectedColor || undefined);
+    const added = await addImei(productId, first, second, selectedColor || undefined, ramToUse, storageToUse);
     setLoading(false);
 
     if (!added) {
@@ -242,7 +293,7 @@ export default function ProductImeis() {
               </div>
               <div className="p-4 rounded-xl border border-purple-200 bg-purple-50">
                 <p className="text-xs text-gray-600 font-medium">Stock Value</p>
-                <p className="text-2xl font-bold text-purple-600 mt-2">{formatCurrency(availableImeis.length * product.salePrice)}</p>
+                <p className="text-2xl font-bold text-purple-600 mt-2">{formatCurrency(totalStockValue)}</p>
               </div>
             </div>
           </div>
@@ -264,6 +315,23 @@ export default function ProductImeis() {
                   >
                     {availableColors.map(c => (
                       <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {availableVariants.length > 0 && (
+                <div>
+                  <Label htmlFor="variant-select" className="text-xs font-semibold">Device Variant (RAM & Storage) *</Label>
+                  <select
+                    id="variant-select"
+                    value={selectedVariantIdx}
+                    onChange={(e) => setSelectedVariantIdx(e.target.value)}
+                    className="w-full mt-2 h-9 px-3 border border-gray-300 rounded-md text-sm bg-white focus:ring-1 focus:ring-orange-500 focus:border-orange-500"
+                  >
+                    <option value="">Select Variant</option>
+                    {availableVariants.map((v, idx) => (
+                      <option key={idx} value={idx}>{v.ram} / {v.storage}</option>
                     ))}
                   </select>
                 </div>
@@ -407,7 +475,10 @@ export default function ProductImeis() {
                               <div key={imei.id} className="bg-white rounded-lg p-3 border border-green-100 flex items-center justify-between hover:shadow-sm transition-shadow">
                                 <div className="flex-1">
                                   <p className="font-mono font-semibold text-gray-900 text-sm">{imei.imei}</p>
-                                  <p className="text-xs text-gray-500 mt-1">Added: {formatDate(imei.createdAt, 'MMM DD, YYYY hh:mm a')}</p>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Added: {formatDate(imei.createdAt, 'MMM DD, YYYY hh:mm a')}
+                                    {imei.ram || imei.storage ? ` • ${imei.ram || ''}/${imei.storage || ''}` : ''}
+                                  </p>
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <span className="px-2 py-1 rounded-full bg-green-100 text-green-700 text-xs font-semibold">Available</span>
@@ -440,6 +511,7 @@ export default function ProductImeis() {
                                   <p className="font-mono font-semibold text-gray-600 text-sm line-through">{imei.imei}</p>
                                   <p className="text-xs text-gray-500 mt-1">
                                     Sold: {imei.soldAt ? formatDate(imei.soldAt, 'MMM DD, YYYY hh:mm a') : 'N/A'}
+                                    {imei.ram || imei.storage ? ` • ${imei.ram || ''}/${imei.storage || ''}` : ''}
                                   </p>
                                 </div>
                                 <span className="px-2 py-1 rounded-full bg-red-100 text-red-700 text-xs font-semibold">Sold</span>

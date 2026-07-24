@@ -25,7 +25,7 @@ export const productSchema = z.object({
   stockQuantity: z.coerce.number().int().min(0, 'Stock cannot be negative'),
   minStockLevel: z.coerce.number().int().min(0).default(5),
   status: z.enum(['active', 'inactive']).default('active'),
-  condition: z.enum(['new', 'used', 'refurbished']).default('new'),
+  condition: z.enum(['new', 'used', 'refurbished', 'open_box']).default('new'),
 });
 
 export type ProductFormData = z.infer<typeof productSchema>;

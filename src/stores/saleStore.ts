@@ -80,6 +80,18 @@ export const useSaleStore = create<SaleState>((set, get) => ({
       const sales = (salesRes.data || []).map(sale => {
         const camelSale = toCamelCase(sale);
         camelSale.items = saleItemsBySaleId[sale.id] || [];
+
+        // Deserialize split payments details from notes
+        if (camelSale.notes && camelSale.notes.includes('__SPLIT_PAYMENTS__:')) {
+          const parts = camelSale.notes.split('__SPLIT_PAYMENTS__:');
+          camelSale.notes = parts[0].trim() || undefined;
+          try {
+            camelSale.paymentDetails = JSON.parse(parts[1]);
+          } catch (e) {
+            console.error('Error parsing split payments JSON:', e);
+          }
+        }
+
         return camelSale;
       }) as Sale[];
 
@@ -155,10 +167,20 @@ export const useSaleStore = create<SaleState>((set, get) => ({
 
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
         const invoiceNumber = generateInvoiceNumber(cleanPrefix, nextNumber + attempt);
+        
+        // Serialize split payments into notes field if paymentDetails exists
+        let notesValue = sale.notes || '';
+        if (sale.paymentDetails) {
+          notesValue = `${notesValue}\n__SPLIT_PAYMENTS__:${JSON.stringify(sale.paymentDetails)}`.trim();
+        }
+
         const saleData = {
           ...sale,
           invoiceNumber,
+          notes: notesValue || null,
         };
+        delete (saleData as any).paymentDetails;
+
         const snakeSale = toSnakeCase(saleData);
 
         const response = await supabase
@@ -275,6 +297,8 @@ export const useSaleStore = create<SaleState>((set, get) => ({
 
       const finalSale = toCamelCase(insertedSale) as Sale;
       finalSale.items = sale.items;
+      finalSale.paymentDetails = sale.paymentDetails;
+      finalSale.notes = sale.notes || undefined;
 
       const sales = [finalSale, ...get().sales];
       set({ sales });
@@ -296,7 +320,14 @@ export const useSaleStore = create<SaleState>((set, get) => ({
 
   updateSale: async (id, data) => {
     try {
-      const snakeData = toSnakeCase(data);
+      const updateData = { ...data };
+      if (updateData.paymentDetails) {
+        let notesValue = updateData.notes || '';
+        notesValue = `${notesValue}\n__SPLIT_PAYMENTS__:${JSON.stringify(updateData.paymentDetails)}`.trim();
+        updateData.notes = notesValue;
+        delete (updateData as any).paymentDetails;
+      }
+      const snakeData = toSnakeCase(updateData);
       const { error } = await supabase
         .from('sales')
         .update(snakeData)

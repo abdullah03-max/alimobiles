@@ -6,7 +6,7 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import {
   LayoutDashboard, Monitor, ShoppingCart, Package, Layers, Tag, Box, Truck,
   ShoppingBag, Users, RotateCcw, CreditCard, BarChart3, Settings, LogOut,
-  ChevronDown, Receipt,
+  ChevronDown, Receipt, RefreshCcw,
 } from 'lucide-react';
 import { useState } from 'react';
 import logoImage from '@/assets/—Pngtree—ali urdu calligraphy free eps_5739559.png';
@@ -26,6 +26,7 @@ const navItems = [
   // Inventory, Brands and Units removed as requested
   { label: 'Suppliers', path: '/suppliers', icon: Truck },
   { label: 'Purchases', path: '/purchases', icon: ShoppingBag },
+  { label: 'Buy Back', path: '/buy-back', icon: RefreshCcw },
   { label: 'Customers', path: '/customers', icon: Users },
   { label: 'Returns', path: '/returns', icon: RotateCcw },
   { label: 'Due Payments', path: '/due-payments', icon: CreditCard },

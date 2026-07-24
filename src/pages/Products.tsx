@@ -223,17 +223,45 @@ export default function Products() {
                     <td className="px-4 py-3 text-gray-600">{model}</td>
                     <td className="px-4 py-3 text-center">
                       <span className={cn(
-                        'inline-block px-2 py-1 rounded text-xs font-medium',
-                        product.condition === 'new' ? 'bg-green-100 text-green-700' :
-                        product.condition === 'refurbished' ? 'bg-blue-100 text-blue-700' :
-                        'bg-orange-100 text-orange-700'
+                        'px-2 py-0.5 rounded-full text-xs font-semibold border',
+                        product.condition === 'new' ? 'bg-green-100 text-green-700 border-green-200' :
+                        product.condition === 'refurbished' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                        product.condition === 'open_box' ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                        'bg-orange-100 text-orange-700 border-orange-200'
                       )}>
-                        {product.condition.charAt(0).toUpperCase() + product.condition.slice(1)}
+                        {product.condition === 'open_box' ? 'Open Box' : product.condition.charAt(0).toUpperCase() + product.condition.slice(1)}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <p className="font-medium">{formatCurrency(product.salePrice)}</p>
-                      <p className="text-[11px] text-gray-500">Cost: {formatCurrency(product.costPrice)}</p>
+                      {(() => {
+                        let salePriceDisplay = formatCurrency(product.salePrice);
+                        let costPriceDisplay = `Cost: ${formatCurrency(product.costPrice)}`;
+                        
+                        if (product.description && product.description.startsWith('{')) {
+                          try {
+                            const parsed = JSON.parse(product.description);
+                            const pVariants = parsed.variants || [];
+                            if (pVariants.length > 0) {
+                              const salePrices = pVariants.map((v: any) => v.salePrice ?? product.salePrice ?? 0);
+                              const costPrices = pVariants.map((v: any) => v.costPrice ?? product.costPrice ?? 0);
+                              const minSale = Math.min(...salePrices);
+                              const maxSale = Math.max(...salePrices);
+                              const minCost = Math.min(...costPrices);
+                              const maxCost = Math.max(...costPrices);
+                              
+                              salePriceDisplay = minSale === maxSale ? formatCurrency(minSale) : `${formatCurrency(minSale)} - ${formatCurrency(maxSale)}`;
+                              costPriceDisplay = minCost === maxCost ? `Cost: ${formatCurrency(minCost)}` : `Cost: ${formatCurrency(minCost)} - ${formatCurrency(maxCost)}`;
+                            }
+                          } catch (e) {}
+                        }
+                        
+                        return (
+                          <>
+                            <p className="font-medium">{salePriceDisplay}</p>
+                            <p className="text-[11px] text-gray-500">{costPriceDisplay}</p>
+                          </>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className={cn(
@@ -277,14 +305,16 @@ export default function Products() {
             const category = categories.find(c => c.id === detailProduct.categoryId);
             const brand = brands.find(b => b.id === detailProduct.brandId);
             
-            // Parse predefined colors and PTA status
+            // Parse predefined colors, variants and PTA status
             let descriptionText = detailProduct.description || '';
             let parsedColors: string[] = [];
+            let parsedVariants: any[] = [];
             let ptaStatus: string = '';
             if (descriptionText.startsWith('{')) {
               try {
                 const parsed = JSON.parse(descriptionText);
                 parsedColors = parsed.colors || [];
+                parsedVariants = parsed.variants || [];
                 ptaStatus = parsed.ptaStatus || '';
                 descriptionText = parsed.text || '';
               } catch (e) {
@@ -349,24 +379,60 @@ export default function Products() {
                 {/* Pricing & Profit */}
                 <div className="border rounded-lg p-3 space-y-2">
                   <h4 className="font-semibold text-gray-850 text-xs uppercase tracking-wider">Pricing details</h4>
-                  <div className="grid grid-cols-3 gap-2 text-xs">
-                    <div>
-                      <span className="text-gray-400">Cost Price</span>
-                      <p className="font-semibold text-gray-700">{formatCurrency(detailProduct.costPrice)}</p>
+                  {parsedVariants.length === 0 ? (
+                    <>
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div>
+                          <span className="text-gray-400">Cost Price</span>
+                          <p className="font-semibold text-gray-700">{formatCurrency(detailProduct.costPrice)}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-400">Sale Price</span>
+                          <p className="font-semibold text-gray-700">{formatCurrency(detailProduct.salePrice)}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-400">Wholesale Price</span>
+                          <p className="font-semibold text-gray-700">{detailProduct.wholesalePrice ? formatCurrency(detailProduct.wholesalePrice) : '—'}</p>
+                        </div>
+                      </div>
+                      <div className="bg-green-50 border border-green-100 rounded-md p-2 text-xs text-green-700 flex justify-between">
+                        <span>Estimated Profit Per Unit</span>
+                        <span className="font-bold">{formatCurrency(profit.amount)} ({profit.margin}% margin)</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-3 pt-1">
+                      {parsedVariants.map((v, vIdx) => {
+                        const vCost = v.costPrice ?? detailProduct.costPrice ?? 0;
+                        const vSale = v.salePrice ?? detailProduct.salePrice ?? 0;
+                        const vWholesale = v.wholesalePrice ?? detailProduct.wholesalePrice ?? 0;
+                        const vProfit = calculateProfit(vCost, vSale);
+                        return (
+                          <div key={vIdx} className="border-t first:border-t-0 pt-2 first:pt-0 space-y-1">
+                            <span className="font-semibold text-gray-805 text-xs">Variant: {v.ram} / {v.storage}</span>
+                            <div className="grid grid-cols-3 gap-2 text-xs pt-1">
+                              <div>
+                                <span className="text-gray-400">Cost Price</span>
+                                <p className="font-semibold text-gray-750">{formatCurrency(vCost)}</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-400">Sale Price</span>
+                                <p className="font-semibold text-gray-750">{formatCurrency(vSale)}</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-400">Wholesale Price</span>
+                                <p className="font-semibold text-gray-755">{vWholesale ? formatCurrency(vWholesale) : '—'}</p>
+                              </div>
+                            </div>
+                            <div className="bg-green-50 border border-green-100 rounded p-1.5 text-xs text-green-700 flex justify-between">
+                              <span>Estimated Profit</span>
+                              <span className="font-bold">{formatCurrency(vProfit.amount)} ({vProfit.margin}% margin)</span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                    <div>
-                      <span className="text-gray-400">Sale Price</span>
-                      <p className="font-semibold text-gray-700">{formatCurrency(detailProduct.salePrice)}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-400">Wholesale Price</span>
-                      <p className="font-semibold text-gray-700">{detailProduct.wholesalePrice ? formatCurrency(detailProduct.wholesalePrice) : '—'}</p>
-                    </div>
-                  </div>
-                  <div className="bg-green-50 border border-green-100 rounded-md p-2 text-xs text-green-700 flex justify-between">
-                    <span>Estimated Profit Per Unit</span>
-                    <span className="font-bold">{formatCurrency(profit.amount)} ({profit.margin}% margin)</span>
-                  </div>
+                  )}
                 </div>
 
                 {/* Stock & Serial Numbers */}
@@ -409,7 +475,7 @@ export default function Products() {
 
                 {/* Metadata */}
                 <div className="grid grid-cols-2 gap-2 text-xs text-gray-400 pt-2 border-t">
-                  <div>Condition: <span className="font-medium text-gray-600 capitalize">{detailProduct.condition}</span></div>
+                  <div>Condition: <span className="font-medium text-gray-600 capitalize">{detailProduct.condition === 'open_box' ? 'Open Box' : detailProduct.condition}</span></div>
                   <div className="text-right">Status: <span className="font-medium text-gray-600 capitalize">{detailProduct.status}</span></div>
                   {descriptionText && (
                     <div className="col-span-2 mt-2 pt-2 border-t">

@@ -211,7 +211,16 @@ export default function InvoiceReceipt({
     if (customerPhone) {
       lines.push(padText('Phone:', 12) + padText(customerPhone, printWidth - 12, 'right'));
     }
-    lines.push(padText('Payment:', 12) + padText(paymentLabel.toUpperCase(), printWidth - 12, 'right'));
+    if (sale.paymentDetails && Object.keys(sale.paymentDetails).length > 0) {
+      lines.push(padText('Payment:', 12) + padText('SPLIT PAYMENT', printWidth - 12, 'right'));
+      Object.keys(sale.paymentDetails).forEach(k => {
+        const methodLabel = k.replace(/_/g, ' ').toUpperCase();
+        const methodAmt = formatAmount(sale.paymentDetails![k]);
+        lines.push(padText(`  - ${methodLabel}:`, 15) + padText(methodAmt, printWidth - 15, 'right'));
+      });
+    } else {
+      lines.push(padText('Payment:', 12) + padText(paymentLabel.toUpperCase(), printWidth - 12, 'right'));
+    }
     lines.push('-'.repeat(printWidth));
 
     const is58mm = printWidth === 32;
@@ -399,9 +408,19 @@ export default function InvoiceReceipt({
                 <span className="font-normal text-gray-500" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>Address : </span>
                 <span className="text-gray-900" style={{ fontFamily: 'Times New Roman, Times, serif' }}>{customerAddress || '___________________________'}</span>
               </td>
-              <td className="p-2 text-left" style={{ fontFamily: 'Times New Roman, Times, serif' }}>
+              <td className="p-2 text-left align-top" style={{ fontFamily: 'Times New Roman, Times, serif' }}>
                 <span className="font-normal text-gray-500" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>Payment : </span>
-                <span className="text-gray-900 uppercase" style={{ fontFamily: 'Tahoma, Arial, Helvetica, sans-serif' }}>{paymentLabel}</span>
+                {sale.paymentDetails && Object.keys(sale.paymentDetails).length > 0 ? (
+                  <div className="inline-block align-top ml-1 text-left text-gray-900 capitalize" style={{ fontFamily: 'Tahoma, Arial, Helvetica, sans-serif' }}>
+                    {Object.keys(sale.paymentDetails).map((k, idx) => (
+                      <div key={k} className="text-[10px]">
+                        {idx + 1}. {k.replace(/_/g, ' ')}: <span className="font-bold">{formatCurrency(sale.paymentDetails![k])}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-gray-900 uppercase" style={{ fontFamily: 'Tahoma, Arial, Helvetica, sans-serif' }}>{paymentLabel}</span>
+                )}
               </td>
             </tr>
             <tr>
