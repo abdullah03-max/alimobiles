@@ -124,19 +124,76 @@ export default function Settings() {
 
   const handleExportProducts = async () => {
     if (!products.length) await loadProducts();
-    exportCsvData(products.map((p, index) => ({
-      No: index + 1,
-      Name: p.name,
-      SKU: p.sku,
-      Barcode: p.barcode,
-      Category: categories.find(c => c.id === p.categoryId)?.name || '',
-      Brand: brands.find(b => b.id === p.brandId)?.name || '',
-      'Cost Price': p.costPrice,
-      'Sale Price': p.salePrice,
-      Stock: p.stockQuantity,
-      Status: p.status,
-      CreatedAt: p.createdAt,
-    })), 'products.csv', 'Products');
+    await useImeiStore.getState().loadData();
+    const allImeis = useImeiStore.getState().imeis;
+
+    const exportRows: any[] = [];
+    let rowNum = 1;
+
+    products.forEach((p) => {
+      const productImeis = allImeis.filter(i => i.productId === p.id);
+
+      if (productImeis.length > 0) {
+        productImeis.forEach(imeiObj => {
+          let imeiCost = p.costPrice;
+          let imeiSale = p.salePrice;
+          if (p.description && p.description.startsWith('{')) {
+            try {
+              const parsed = JSON.parse(p.description);
+              const variants = parsed.variants || [];
+              const matchedVariant = variants.find((v: any) => 
+                v.ram?.trim().toLowerCase() === (imeiObj.ram || '').trim().toLowerCase() && 
+                v.storage?.trim().toLowerCase() === (imeiObj.storage || '').trim().toLowerCase()
+              );
+              if (matchedVariant) {
+                imeiCost = matchedVariant.costPrice ?? imeiCost;
+                imeiSale = matchedVariant.salePrice ?? imeiSale;
+              }
+            } catch (e) {}
+          }
+
+          exportRows.push({
+            No: rowNum++,
+            Name: p.name,
+            SKU: p.sku,
+            Barcode: p.barcode,
+            Category: categories.find(c => c.id === p.categoryId)?.name || '',
+            Brand: brands.find(b => b.id === p.brandId)?.name || '',
+            'Cost Price': imeiCost,
+            'Sale Price': imeiSale,
+            Stock: 1,
+            'IMEI 1': imeiObj.imei1 || imeiObj.imei || '',
+            'IMEI 2': imeiObj.imei2 || '',
+            Color: imeiObj.color || '',
+            RAM: imeiObj.ram || '',
+            Storage: imeiObj.storage || '',
+            Status: imeiObj.status,
+            CreatedAt: p.createdAt,
+          });
+        });
+      } else {
+        exportRows.push({
+          No: rowNum++,
+          Name: p.name,
+          SKU: p.sku,
+          Barcode: p.barcode,
+          Category: categories.find(c => c.id === p.categoryId)?.name || '',
+          Brand: brands.find(b => b.id === p.brandId)?.name || '',
+          'Cost Price': p.costPrice,
+          'Sale Price': p.salePrice,
+          Stock: p.stockQuantity,
+          'IMEI 1': '',
+          'IMEI 2': '',
+          Color: '',
+          RAM: '',
+          Storage: '',
+          Status: p.status,
+          CreatedAt: p.createdAt,
+        });
+      }
+    });
+
+    exportCsvData(exportRows, 'products.csv', 'Products');
   };
 
   const handleExportSales = async () => {
