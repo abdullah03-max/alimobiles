@@ -13,6 +13,7 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import PurchaseInvoiceReceipt from '@/components/shared/PurchaseInvoiceReceipt';
 import { usePrint } from '@/hooks/usePrint';
+import { useSettingsStore } from '@/stores/settingsStore';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { 
   Search, Smartphone, History, Calendar, DollarSign, 
@@ -26,6 +27,11 @@ export default function BuyBack() {
   const { products, updateProduct, loadData: loadProductData } = useProductStore();
   const { sales, loadData: loadSaleData } = useSaleStore();
   const { purchases, suppliers, addSupplier, addPurchase, updatePurchase, deletePurchase, loadData: loadSupplierData } = useSupplierStore();
+  const { shopSettings, receiptSettings, loadSettings } = useSettingsStore();
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searched, setSearched] = useState(false);
@@ -446,7 +452,7 @@ export default function BuyBack() {
     setSubmitting(true);
     try {
       // 1. Find or create default supplier
-      let buyBackSupplier = suppliers.find(s => s.name === 'Walk-in Buy Back');
+      let buyBackSupplier: any = suppliers.find(s => s.name === 'Walk-in Buy Back');
       if (!buyBackSupplier) {
         buyBackSupplier = await addSupplier({
           name: 'Walk-in Buy Back',
@@ -1219,6 +1225,8 @@ export default function BuyBack() {
           <PurchaseInvoiceReceipt 
             id="buyback-receipt-print" 
             purchase={printPurchase} 
+            shopSettings={shopSettings}
+            receiptSettings={receiptSettings}
           />
         )}
       </div>
