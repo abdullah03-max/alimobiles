@@ -142,12 +142,7 @@ export default function Products() {
           <option value="low_stock">Low Stock</option>
           <option value="out_of_stock">Out of Stock</option>
         </select>
-        <select value={conditionFilter} onChange={(e) => setConditionFilter(e.target.value)} className="h-9 px-3 border rounded-md text-sm bg-white">
-          <option value="">All Conditions</option>
-          <option value="new">New</option>
-          <option value="refurbished">Refurbished</option>
-          <option value="used">Used</option>
-        </select>
+        {/* Removed conditionFilter selection */}
       </div>
 
       {/* Table */}
@@ -162,7 +157,6 @@ export default function Products() {
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Product</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Category</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Model</th>
-                <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Condition</th>
                 <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Price</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Stock</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Status</th>
@@ -222,17 +216,6 @@ export default function Products() {
                     </td>
                     <td className="px-4 py-3"><span className="px-2 py-0.5 bg-gray-100 rounded text-xs">{category?.name}</span></td>
                     <td className="px-4 py-3 text-gray-600">{model}</td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={cn(
-                        'px-2 py-0.5 rounded-full text-xs font-semibold border',
-                        product.condition === 'new' ? 'bg-green-100 text-green-700 border-green-200' :
-                        product.condition === 'refurbished' ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                        product.condition === 'open_box' ? 'bg-amber-100 text-amber-700 border-amber-200' :
-                        'bg-orange-100 text-orange-700 border-orange-200'
-                      )}>
-                        {product.condition === 'open_box' ? 'Open Box' : product.condition.charAt(0).toUpperCase() + product.condition.slice(1)}
-                      </span>
-                    </td>
                     <td className="px-4 py-3 text-right">
                       {(() => {
                         let salePriceDisplay = formatCurrency(product.salePrice);
@@ -468,8 +451,36 @@ export default function Products() {
                       <span className="text-xs text-gray-400 block mb-1">IMEI Serial Registry</span>
                       <div className="border rounded-md divide-y max-h-[140px] overflow-y-auto font-mono text-[11px]">
                         {productImeis.map(record => (
-                          <div key={record.id} className="flex justify-between items-center p-2 hover:bg-gray-50">
-                            <span>{record.imei} {record.color ? `(${record.color})` : ''}</span>
+                          <div key={record.id} className="flex justify-between items-start p-2 hover:bg-gray-50">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-mono text-gray-900">{record.imei} {record.color ? `(${record.color})` : ''}</span>
+                              <div className="flex flex-wrap gap-1 mt-0.5 font-sans">
+                                {record.ram || record.storage ? (
+                                  <span className="text-[10px] text-gray-500 font-semibold bg-gray-150 px-1 rounded-sm">
+                                    {record.ram || ''}/{record.storage || ''}
+                                  </span>
+                                ) : null}
+                                {record.condition && (
+                                  <span className={cn(
+                                    "text-[10px] font-semibold px-1 rounded-sm border capitalize",
+                                    record.condition === 'new' ? "bg-green-50 text-green-700 border-green-100" :
+                                    record.condition === 'used' ? "bg-orange-50 text-orange-700 border-orange-100" :
+                                    record.condition === 'open_box' ? "bg-amber-50 text-amber-700 border-amber-100" :
+                                    "bg-blue-50 text-blue-700 border-blue-100"
+                                  )}>
+                                    {record.condition === 'open_box' ? 'Open Box' : record.condition}
+                                  </span>
+                                )}
+                                {record.ptaStatus && (
+                                  <span className={cn(
+                                    "text-[10px] font-semibold px-1 rounded-sm border",
+                                    record.ptaStatus === 'approved' ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"
+                                  )}>
+                                    {record.ptaStatus === 'approved' ? 'PTA Approved' : 'Non PTA'}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                             <span className={cn(
                               "px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase",
                               record.status === 'available' ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"
@@ -484,9 +495,8 @@ export default function Products() {
                 </div>
 
                 {/* Metadata */}
-                <div className="grid grid-cols-2 gap-2 text-xs text-gray-400 pt-2 border-t">
-                  <div>Condition: <span className="font-medium text-gray-600 capitalize">{detailProduct.condition === 'open_box' ? 'Open Box' : detailProduct.condition}</span></div>
-                  <div className="text-right">Status: <span className="font-medium text-gray-600 capitalize">{detailProduct.status}</span></div>
+                <div className="flex justify-between items-center text-xs text-gray-400 pt-2 border-t">
+                  <span>Product Status: <span className="font-medium text-gray-600 capitalize">{detailProduct.status}</span></span>
                   {descriptionText && (
                     <div className="col-span-2 mt-2 pt-2 border-t">
                       <span className="font-semibold text-gray-500 block text-xs">Description</span>
