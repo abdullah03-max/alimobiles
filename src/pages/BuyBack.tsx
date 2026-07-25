@@ -339,6 +339,17 @@ export default function BuyBack() {
     }
   };
 
+  // Auto-trigger search if query matches any registered IMEI (length >= 14)
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (query.length < 14) return;
+
+    const record = findByImei(query);
+    if (record) {
+      handleSearch();
+    }
+  }, [searchQuery]);
+
 
 
   // Find previous sale transaction
@@ -608,6 +619,7 @@ export default function BuyBack() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 h-10 bg-white"
+              autoFocus
             />
           </div>
           <Button type="submit" className="h-10 bg-orange-600 hover:bg-orange-700 text-white font-medium px-5 flex items-center gap-2">
