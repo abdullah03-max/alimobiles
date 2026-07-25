@@ -25,8 +25,19 @@ export default function Products() {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [stockFilter, setStockFilter] = useState('');
   const [conditionFilter, setConditionFilter] = useState('');
+  const [ptaFilter, setPtaFilter] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [detailProduct, setDetailProduct] = useState<any | null>(null);
+
+  // Dialog (modal) level filters for individual units
+  const [modalConditionFilter, setModalConditionFilter] = useState('');
+  const [modalPtaFilter, setModalPtaFilter] = useState('');
+
+  // Reset modal filters on change of active product
+  useEffect(() => {
+    setModalConditionFilter('');
+    setModalPtaFilter('');
+  }, [detailProduct]);
 
   useEffect(() => {
     loadData();
@@ -50,10 +61,34 @@ export default function Products() {
       result = result.filter(p => getStockStatus(p.stockQuantity, p.minStockLevel) === stockFilter);
     }
     if (conditionFilter) {
-      result = result.filter(p => p.condition === conditionFilter);
+      result = result.filter(p => {
+        const pImeis = getImeisByProduct(p.id);
+        const available = pImeis.filter(i => i.status === 'available');
+        if (available.length > 0) {
+          return available.some(i => i.condition === conditionFilter);
+        }
+        return p.condition === conditionFilter;
+      });
+    }
+    if (ptaFilter) {
+      result = result.filter(p => {
+        const pImeis = getImeisByProduct(p.id);
+        const available = pImeis.filter(i => i.status === 'available');
+        if (available.length > 0) {
+          return available.some(i => i.ptaStatus === ptaFilter);
+        }
+        let productPta = '';
+        if (p.description && p.description.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(p.description);
+            productPta = parsed.ptaStatus || '';
+          } catch {}
+        }
+        return productPta === ptaFilter;
+      });
     }
     return result;
-  }, [products, search, categoryFilter, stockFilter, conditionFilter]);
+  }, [products, search, categoryFilter, stockFilter, conditionFilter, ptaFilter, getImeisByProduct]);
 
   const stats = useMemo(() => ({
     total: products.length,
@@ -142,7 +177,18 @@ export default function Products() {
           <option value="low_stock">Low Stock</option>
           <option value="out_of_stock">Out of Stock</option>
         </select>
-        {/* Removed conditionFilter selection */}
+        <select value={conditionFilter} onChange={(e) => setConditionFilter(e.target.value)} className="h-9 px-3 border rounded-md text-sm bg-white">
+          <option value="">All Conditions</option>
+          <option value="new">New</option>
+          <option value="used">Used</option>
+          <option value="open_box">Open Box</option>
+          <option value="refurbished">Refurbished</option>
+        </select>
+        <select value={ptaFilter} onChange={(e) => setPtaFilter(e.target.value)} className="h-9 px-3 border rounded-md text-sm bg-white">
+          <option value="">All PTA Statuses</option>
+          <option value="approved">PTA Approved</option>
+          <option value="non-approved">Non PTA</option>
+        </select>
       </div>
 
       {/* Table */}
@@ -281,7 +327,7 @@ export default function Products() {
 
       {/* Product Detail Dialog */}
       <Dialog open={!!detailProduct} onOpenChange={(open) => { if (!open) setDetailProduct(null); }}>
-        <DialogContent className="sm:max-w-[550px] max-h-[85vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[850px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Product Details</DialogTitle>
           </DialogHeader>
@@ -324,185 +370,236 @@ export default function Products() {
             const profit = calculateProfit(detailProduct.costPrice, detailProduct.salePrice);
             
             return (
-              <div className="space-y-4">
-                {/* General Info */}
-                <div className="flex items-center gap-3 border-b pb-3">
-                  <div className="w-12 h-12 bg-orange-50 rounded-lg flex items-center justify-center text-orange-500">
-                    <Package className="w-6 h-6" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
-                      {detailProduct.name}
-                      {ptaStatus && (
-                        <span className={cn(
-                          'px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap',
-                          ptaStatus === 'approved' 
-                            ? 'bg-green-50 text-green-700 border-green-200' :
-                          ptaStatus === 'mixed'
-                            ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
-                            : 'bg-red-50 text-red-700 border-red-200'
-                        )}>
-                          {ptaStatus === 'approved' ? 'PTA Approved' : ptaStatus === 'mixed' ? 'Mixed PTA' : 'Non PTA'}
-                        </span>
-                      )}
-                    </h3>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Category: <span className="font-semibold">{category?.name || '—'}</span> | Brand: <span className="font-semibold">{brand?.name || '—'}</span>
-                    </p>
-                  </div>
-                </div>
-
-                {/* Specs (only predefined colors) */}
-                <div className="space-y-3 text-sm">
-                  <div className="bg-gray-50 p-2.5 rounded-lg">
-                    <span className="text-gray-400 block text-xs">Predefined Colors</span>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {parsedColors.length > 0 ? parsedColors.map(c => (
-                        <div key={c} className="flex min-w-[140px] flex-col gap-1 rounded-2xl border border-orange-100 bg-orange-50 px-3 py-2">
-                          <span className="text-orange-700 text-xs font-semibold uppercase tracking-wide">{c}</span>
-                          <span className="text-xs text-gray-600">{colorStockCounts[c] ?? 0} remaining</span>
-                        </div>
-                      )) : (
-                        <span className="text-xs text-gray-400 italic">No colors defined</span>
-                      )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Left Column: General Info, Specs, Pricing */}
+                <div className="space-y-4">
+                  {/* General Info */}
+                  <div className="flex items-center gap-3 border-b pb-3">
+                    <div className="w-12 h-12 bg-orange-50 rounded-lg flex items-center justify-center text-orange-500">
+                      <Package className="w-6 h-6" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
+                        {detailProduct.name}
+                        {ptaStatus && (
+                          <span className={cn(
+                            'px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap',
+                            ptaStatus === 'approved' 
+                              ? 'bg-green-50 text-green-700 border-green-200' :
+                            ptaStatus === 'mixed'
+                              ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                              : 'bg-red-50 text-red-700 border-red-200'
+                          )}>
+                            {ptaStatus === 'approved' ? 'PTA Approved' : ptaStatus === 'mixed' ? 'Mixed PTA' : 'Non PTA'}
+                          </span>
+                        )}
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Category: <span className="font-semibold">{category?.name || '—'}</span> | Brand: <span className="font-semibold">{brand?.name || '—'}</span>
+                      </p>
                     </div>
                   </div>
-                </div>
 
-                {/* Pricing & Profit */}
-                <div className="border rounded-lg p-3 space-y-2">
-                  <h4 className="font-semibold text-gray-850 text-xs uppercase tracking-wider">Pricing details</h4>
-                  {parsedVariants.length === 0 ? (
-                    <>
-                      <div className="grid grid-cols-3 gap-2 text-xs">
-                        <div>
-                          <span className="text-gray-400">Cost Price</span>
-                          <p className="font-semibold text-gray-700">{formatCurrency(detailProduct.costPrice)}</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-400">Sale Price</span>
-                          <p className="font-semibold text-gray-700">{formatCurrency(detailProduct.salePrice)}</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-400">Wholesale Price</span>
-                          <p className="font-semibold text-gray-700">{detailProduct.wholesalePrice ? formatCurrency(detailProduct.wholesalePrice) : '—'}</p>
-                        </div>
-                      </div>
-                      <div className="bg-green-50 border border-green-100 rounded-md p-2 text-xs text-green-700 flex justify-between">
-                        <span>Estimated Profit Per Unit</span>
-                        <span className="font-bold">{formatCurrency(profit.amount)} ({profit.margin}% margin)</span>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="space-y-3 pt-1">
-                      {parsedVariants.map((v, vIdx) => {
-                        const vCost = v.costPrice ?? detailProduct.costPrice ?? 0;
-                        const vSale = v.salePrice ?? detailProduct.salePrice ?? 0;
-                        const vWholesale = v.wholesalePrice ?? detailProduct.wholesalePrice ?? 0;
-                        const vProfit = calculateProfit(vCost, vSale);
-                        return (
-                          <div key={vIdx} className="border-t first:border-t-0 pt-2 first:pt-0 space-y-1">
-                            <span className="font-semibold text-gray-805 text-xs">Variant: {v.ram} / {v.storage}</span>
-                            <div className="grid grid-cols-3 gap-2 text-xs pt-1">
-                              <div>
-                                <span className="text-gray-400">Cost Price</span>
-                                <p className="font-semibold text-gray-750">{formatCurrency(vCost)}</p>
-                              </div>
-                              <div>
-                                <span className="text-gray-400">Sale Price</span>
-                                <p className="font-semibold text-gray-750">{formatCurrency(vSale)}</p>
-                              </div>
-                              <div>
-                                <span className="text-gray-400">Wholesale Price</span>
-                                <p className="font-semibold text-gray-755">{vWholesale ? formatCurrency(vWholesale) : '—'}</p>
-                              </div>
-                            </div>
-                            <div className="bg-green-50 border border-green-100 rounded p-1.5 text-xs text-green-700 flex justify-between">
-                              <span>Estimated Profit</span>
-                              <span className="font-bold">{formatCurrency(vProfit.amount)} ({vProfit.margin}% margin)</span>
-                            </div>
+                  {/* Specs (only predefined colors) */}
+                  <div className="space-y-3 text-sm">
+                    <div className="bg-gray-50 p-2.5 rounded-lg">
+                      <span className="text-gray-400 block text-xs">Predefined Colors</span>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {parsedColors.length > 0 ? parsedColors.map(c => (
+                          <div key={c} className="flex min-w-[140px] flex-col gap-1 rounded-2xl border border-orange-100 bg-orange-50 px-3 py-2">
+                            <span className="text-orange-700 text-xs font-semibold uppercase tracking-wide">{c}</span>
+                            <span className="text-xs text-gray-600">{colorStockCounts[c] ?? 0} remaining</span>
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* Stock & Serial Numbers */}
-                <div className="border rounded-lg p-3 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <h4 className="font-semibold text-gray-850 text-xs uppercase tracking-wider">Stock & IMEIs</h4>
-                    <span className="text-xs bg-gray-150 text-gray-700 px-2 py-0.5 rounded-full font-semibold">Total Stock: {detailProduct.stockQuantity}</span>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-2 text-center text-xs">
-                    <div className="bg-green-50/50 border border-green-100 rounded p-2 text-green-700">
-                      <span className="font-bold text-base block">{availableImeis.length}</span>
-                      Available
-                    </div>
-                    <div className="bg-red-50/50 border border-red-100 rounded p-2 text-red-700">
-                      <span className="font-bold text-base block">{soldImeis.length}</span>
-                      Sold
-                    </div>
-                  </div>
-
-                  {productImeis.length > 0 && (
-                    <div className="mt-2">
-                      <span className="text-xs text-gray-400 block mb-1">IMEI Serial Registry</span>
-                      <div className="border rounded-md divide-y max-h-[140px] overflow-y-auto font-mono text-[11px]">
-                        {productImeis.map(record => (
-                          <div key={record.id} className="flex justify-between items-start p-2 hover:bg-gray-50">
-                            <div className="flex flex-col gap-0.5">
-                              <span className="font-mono text-gray-900">{record.imei} {record.color ? `(${record.color})` : ''}</span>
-                              <div className="flex flex-wrap gap-1 mt-0.5 font-sans">
-                                {record.ram || record.storage ? (
-                                  <span className="text-[10px] text-gray-500 font-semibold bg-gray-150 px-1 rounded-sm">
-                                    {record.ram || ''}/{record.storage || ''}
-                                  </span>
-                                ) : null}
-                                {record.condition && (
-                                  <span className={cn(
-                                    "text-[10px] font-semibold px-1 rounded-sm border capitalize",
-                                    record.condition === 'new' ? "bg-green-50 text-green-700 border-green-100" :
-                                    record.condition === 'used' ? "bg-orange-50 text-orange-700 border-orange-100" :
-                                    record.condition === 'open_box' ? "bg-amber-50 text-amber-700 border-amber-100" :
-                                    "bg-blue-50 text-blue-700 border-blue-100"
-                                  )}>
-                                    {record.condition === 'open_box' ? 'Open Box' : record.condition}
-                                  </span>
-                                )}
-                                {record.ptaStatus && (
-                                  <span className={cn(
-                                    "text-[10px] font-semibold px-1 rounded-sm border",
-                                    record.ptaStatus === 'approved' ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"
-                                  )}>
-                                    {record.ptaStatus === 'approved' ? 'PTA Approved' : 'Non PTA'}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <span className={cn(
-                              "px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase",
-                              record.status === 'available' ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"
-                            )}>
-                              {record.status}
-                            </span>
-                          </div>
-                        ))}
+                        )) : (
+                          <span className="text-xs text-gray-400 italic">No colors defined</span>
+                        )}
                       </div>
                     </div>
-                  )}
-                </div>
+                  </div>
 
-                {/* Metadata */}
-                <div className="flex justify-between items-center text-xs text-gray-400 pt-2 border-t">
-                  <span>Product Status: <span className="font-medium text-gray-600 capitalize">{detailProduct.status}</span></span>
+                  {/* Pricing & Profit */}
+                  <div className="border rounded-lg p-3 space-y-2">
+                    <h4 className="font-semibold text-gray-850 text-xs uppercase tracking-wider">Pricing details</h4>
+                    {parsedVariants.length === 0 ? (
+                      <>
+                        <div className="grid grid-cols-3 gap-2 text-xs">
+                          <div>
+                            <span className="text-gray-400">Cost Price</span>
+                            <p className="font-semibold text-gray-700">{formatCurrency(detailProduct.costPrice)}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-400">Sale Price</span>
+                            <p className="font-semibold text-gray-700">{formatCurrency(detailProduct.salePrice)}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-400">Wholesale Price</span>
+                            <p className="font-semibold text-gray-700">{detailProduct.wholesalePrice ? formatCurrency(detailProduct.wholesalePrice) : '—'}</p>
+                          </div>
+                        </div>
+                        <div className="bg-green-50 border border-green-100 rounded-md p-2 text-xs text-green-700 flex justify-between">
+                          <span>Estimated Profit Per Unit</span>
+                          <span className="font-bold">{formatCurrency(profit.amount)} ({profit.margin}% margin)</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="space-y-3 pt-1">
+                        {parsedVariants.map((v, vIdx) => {
+                          const vCost = v.costPrice ?? detailProduct.costPrice ?? 0;
+                          const vSale = v.salePrice ?? detailProduct.salePrice ?? 0;
+                          const vWholesale = v.wholesalePrice ?? detailProduct.wholesalePrice ?? 0;
+                          const vProfit = calculateProfit(vCost, vSale);
+                          return (
+                            <div key={vIdx} className="border-t first:border-t-0 pt-2 first:pt-0 space-y-1">
+                              <span className="font-semibold text-gray-855 text-xs">Variant: {v.ram} / {v.storage}</span>
+                              <div className="grid grid-cols-3 gap-2 text-xs pt-1">
+                                <div>
+                                  <span className="text-gray-400">Cost Price</span>
+                                  <p className="font-semibold text-gray-750">{formatCurrency(vCost)}</p>
+                                </div>
+                                <div>
+                                  <span className="text-gray-400">Sale Price</span>
+                                  <p className="font-semibold text-gray-755">{formatCurrency(vSale)}</p>
+                                </div>
+                                <div>
+                                  <span className="text-gray-400">Wholesale Price</span>
+                                  <p className="font-semibold text-gray-755">{vWholesale ? formatCurrency(vWholesale) : '—'}</p>
+                                </div>
+                              </div>
+                              <div className="bg-green-50 border border-green-100 rounded p-1.5 text-xs text-green-700 flex justify-between">
+                                <span>Estimated Profit</span>
+                                <span className="font-bold">{formatCurrency(vProfit.amount)} ({vProfit.margin}% margin)</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Metadata */}
+                  <div className="flex justify-between items-center text-xs text-gray-400 pt-2 border-t">
+                    <span>Product Status: <span className="font-medium text-gray-600 capitalize">{detailProduct.status}</span></span>
+                  </div>
                   {descriptionText && (
-                    <div className="col-span-2 mt-2 pt-2 border-t">
+                    <div className="pt-2 border-t text-xs">
                       <span className="font-semibold text-gray-500 block text-xs">Description</span>
                       <p className="mt-0.5 text-gray-600 normal-case leading-relaxed">{descriptionText}</p>
                     </div>
                   )}
+                </div>
+
+                {/* Right Column: Stock Stats & IMEI registry */}
+                <div className="space-y-4 border-t md:border-t-0 md:border-l md:pl-6 pt-4 md:pt-0">
+                  <div className="border rounded-lg p-3 space-y-2 bg-gray-50/50">
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-semibold text-gray-850 text-xs uppercase tracking-wider">Stock Stats</h4>
+                      <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full font-semibold">Total: {detailProduct.stockQuantity}</span>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2 text-center text-xs">
+                      <div className="bg-white border border-green-100 rounded p-2 text-green-700 shadow-sm">
+                        <span className="font-bold text-base block">{availableImeis.length}</span>
+                        Available
+                      </div>
+                      <div className="bg-white border border-red-100 rounded p-2 text-red-700 shadow-sm">
+                        <span className="font-bold text-base block">{soldImeis.length}</span>
+                        Sold
+                      </div>
+                    </div>
+                  </div>
+
+                  {productImeis.length > 0 && (() => {
+                    const filteredImeis = productImeis.filter(record => {
+                      if (modalConditionFilter && record.condition !== modalConditionFilter) return false;
+                      if (modalPtaFilter && record.ptaStatus !== modalPtaFilter) return false;
+                      return true;
+                    });
+
+                    return (
+                      <div className="border rounded-lg p-3 space-y-3">
+                        <div className="flex justify-between items-center">
+                          <h4 className="font-semibold text-gray-850 text-xs uppercase tracking-wider">IMEI Serial Registry</h4>
+                          <span className="text-[10px] text-gray-400">showing {filteredImeis.length} of {productImeis.length}</span>
+                        </div>
+
+                        {/* Modal Filter Dropdowns */}
+                        <div className="grid grid-cols-2 gap-2 bg-gray-50 p-2 rounded-md border">
+                          <div>
+                            <label className="text-[10px] font-semibold text-gray-500 block mb-1">Filter Condition</label>
+                            <select
+                              value={modalConditionFilter}
+                              onChange={(e) => setModalConditionFilter(e.target.value)}
+                              className="w-full h-8 px-2 border rounded-md text-xs bg-white focus:ring-1 focus:ring-orange-500"
+                            >
+                              <option value="">All Conditions</option>
+                              <option value="new">New</option>
+                              <option value="used">Used</option>
+                              <option value="open_box">Open Box</option>
+                              <option value="refurbished">Refurbished</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-semibold text-gray-500 block mb-1">Filter PTA Status</label>
+                            <select
+                              value={modalPtaFilter}
+                              onChange={(e) => setModalPtaFilter(e.target.value)}
+                              className="w-full h-8 px-2 border rounded-md text-xs bg-white focus:ring-1 focus:ring-orange-500"
+                            >
+                              <option value="">All PTA Statuses</option>
+                              <option value="approved">PTA Approved</option>
+                              <option value="non-approved">Non PTA</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="border rounded-md divide-y max-h-[220px] overflow-y-auto font-mono text-[11px] bg-white">
+                          {filteredImeis.length > 0 ? filteredImeis.map(record => (
+                            <div key={record.id} className="flex justify-between items-start p-2 hover:bg-gray-50">
+                              <div className="flex flex-col gap-0.5">
+                                <span className="font-mono text-gray-900">{record.imei} {record.color ? `(${record.color})` : ''}</span>
+                                <div className="flex flex-wrap gap-1 mt-0.5 font-sans">
+                                  {record.ram || record.storage ? (
+                                    <span className="text-[10px] text-gray-500 font-semibold bg-gray-150 px-1 rounded-sm">
+                                      {record.ram || ''}/{record.storage || ''}
+                                    </span>
+                                  ) : null}
+                                  {record.condition && (
+                                    <span className={cn(
+                                      "text-[10px] font-semibold px-1 rounded-sm border capitalize",
+                                      record.condition === 'new' ? "bg-green-50 text-green-700 border-green-100" :
+                                      record.condition === 'used' ? "bg-orange-50 text-orange-700 border-orange-100" :
+                                      record.condition === 'open_box' ? "bg-amber-50 text-amber-700 border-amber-100" :
+                                      "bg-blue-50 text-blue-700 border-blue-100"
+                                    )}>
+                                      {record.condition === 'open_box' ? 'Open Box' : record.condition}
+                                    </span>
+                                  )}
+                                  {record.ptaStatus && (
+                                    <span className={cn(
+                                      "text-[10px] font-semibold px-1 rounded-sm border",
+                                      record.ptaStatus === 'approved' ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"
+                                    )}>
+                                      {record.ptaStatus === 'approved' ? 'PTA Approved' : 'Non PTA'}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <span className={cn(
+                                "px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase",
+                                record.status === 'available' ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border-red-200"
+                              )}>
+                                {record.status}
+                              </span>
+                            </div>
+                          )) : (
+                            <div className="p-4 text-center text-gray-500 font-sans text-xs italic">
+                              No matching IMEIs found
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             );
