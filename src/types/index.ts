@@ -324,6 +324,7 @@ type CartItem = {
   color?: string;
   ram?: string;
   ptaStatus?: string;
+  condition?: string;
   maxStock: number;
   discount?: number;
   discountType?: 'percent' | 'amount';

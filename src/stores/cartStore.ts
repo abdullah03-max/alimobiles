@@ -66,10 +66,14 @@ export const useCartStore = create<CartState>((set, get) => ({
       ptaStatus = 'non-approved';
     }
 
+    let condition = product.condition || 'new';
     if (itemImei) {
       const imeiRecord = useImeiStore.getState().findByImei(itemImei);
       if (imeiRecord?.ptaStatus) {
         ptaStatus = imeiRecord.ptaStatus;
+      }
+      if (imeiRecord?.condition) {
+        condition = imeiRecord.condition;
       }
       const imei1 = imeiRecord?.imei1 || itemImei;
       const imei2 = imeiRecord?.imei2 || '';
@@ -129,6 +133,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         color,
         ram,
         ptaStatus,
+        condition,
         discount: 0,
         discountType: 'amount',
       };
@@ -189,6 +194,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         color,
         ram,
         ptaStatus,
+        condition: product.condition || 'new',
         discount: 0,
         discountType: 'amount',
       };

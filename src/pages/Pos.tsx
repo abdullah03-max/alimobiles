@@ -751,7 +751,28 @@ export default function Pos() {
                           </div>
                           {item.imei && (
                             <div className="text-[10px] text-orange-600 font-mono mt-0.5 space-y-0.5">
-                              <p>IMEI 1: {item.imei1 || item.imei} {item.color ? `(${item.color})` : ''}</p>
+                              <p className="flex items-center flex-wrap gap-1.5">
+                                <span>IMEI 1: {item.imei1 || item.imei} {item.color ? `(${item.color})` : ''}</span>
+                                {item.condition && (
+                                  <span className={cn(
+                                    "px-1 py-0.2 rounded-sm text-[9px] font-semibold font-sans border capitalize",
+                                    item.condition === 'new' ? "bg-green-50 text-green-700 border-green-200" :
+                                    item.condition === 'used' ? "bg-orange-50 text-orange-700 border-orange-200" :
+                                    item.condition === 'open_box' ? "bg-amber-50 text-amber-700 border-amber-200" :
+                                    "bg-blue-50 text-blue-700 border-blue-200"
+                                  )}>
+                                    {item.condition === 'open_box' ? 'Open Box' : item.condition}
+                                  </span>
+                                )}
+                                {item.ptaStatus && (
+                                  <span className={cn(
+                                    "px-1 py-0.2 rounded-sm text-[9px] font-semibold font-sans border",
+                                    item.ptaStatus === 'approved' ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"
+                                  )}>
+                                    {item.ptaStatus === 'approved' ? 'PTA Approved' : 'Non PTA'}
+                                  </span>
+                                )}
+                              </p>
                               {item.imei2 && <p>IMEI 2: {item.imei2}</p>}
                             </div>
                           )}

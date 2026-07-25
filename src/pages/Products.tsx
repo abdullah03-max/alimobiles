@@ -327,7 +327,7 @@ export default function Products() {
 
       {/* Product Detail Dialog */}
       <Dialog open={!!detailProduct} onOpenChange={(open) => { if (!open) setDetailProduct(null); }}>
-        <DialogContent className="sm:max-w-[850px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[95vw] w-[95vw] md:max-w-[1300px] max-h-[95vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Product Details</DialogTitle>
           </DialogHeader>
