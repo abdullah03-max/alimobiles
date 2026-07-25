@@ -184,15 +184,14 @@ export default function Products() {
                   }
                 }
 
-                // Extract PTA status from description
+                // Extract PTA status from available IMEIs
+                const productImeisList = useImeiStore.getState().getAvailableByProduct(product.id);
                 let ptaStatus = '';
-                if (product.description && product.description.startsWith('{')) {
-                  try {
-                    const parsed = JSON.parse(product.description);
-                    ptaStatus = parsed.ptaStatus || '';
-                  } catch (e) {
-                    // ignore
-                  }
+                if (productImeisList.length > 0) {
+                  const approvedCount = productImeisList.filter(i => i.ptaStatus === 'approved').length;
+                  if (approvedCount === productImeisList.length) ptaStatus = 'approved';
+                  else if (approvedCount === 0) ptaStatus = 'non-approved';
+                  else ptaStatus = 'mixed';
                 }
                 
                 return (
@@ -208,10 +207,12 @@ export default function Products() {
                               <span className={cn(
                                 'inline-block px-1.5 py-0.5 rounded text-[9px] font-bold border whitespace-nowrap',
                                 ptaStatus === 'approved' 
-                                  ? 'bg-green-50 text-green-700 border-green-200' 
+                                  ? 'bg-green-50 text-green-700 border-green-200' :
+                                ptaStatus === 'mixed'
+                                  ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
                                   : 'bg-red-50 text-red-700 border-red-200'
                               )}>
-                                {ptaStatus === 'approved' ? 'PTA' : 'Non PTA'}
+                                {ptaStatus === 'approved' ? 'PTA Approved' : ptaStatus === 'mixed' ? 'Mixed PTA' : 'Non PTA'}
                               </span>
                             )}
                           </p>
@@ -309,13 +310,11 @@ export default function Products() {
             let descriptionText = detailProduct.description || '';
             let parsedColors: string[] = [];
             let parsedVariants: any[] = [];
-            let ptaStatus: string = '';
             if (descriptionText.startsWith('{')) {
               try {
                 const parsed = JSON.parse(descriptionText);
                 parsedColors = parsed.colors || [];
                 parsedVariants = parsed.variants || [];
-                ptaStatus = parsed.ptaStatus || '';
                 descriptionText = parsed.text || '';
               } catch (e) {
                 // fallback
@@ -325,6 +324,15 @@ export default function Products() {
             const productImeis = getImeisByProduct(detailProduct.id);
             const availableImeis = productImeis.filter(i => i.status === 'available');
             const soldImeis = productImeis.filter(i => i.status === 'sold');
+
+            let ptaStatus: string = '';
+            if (availableImeis.length > 0) {
+              const approvedCount = availableImeis.filter(i => i.ptaStatus === 'approved').length;
+              if (approvedCount === availableImeis.length) ptaStatus = 'approved';
+              else if (approvedCount === 0) ptaStatus = 'non-approved';
+              else ptaStatus = 'mixed';
+            }
+
             const colorStockCounts = parsedColors.reduce<Record<string, number>>((acc, color) => {
               const normalized = color.toLowerCase().trim();
               acc[color] = availableImeis.filter(imei => imei.color?.trim().toLowerCase() === normalized).length;
@@ -346,10 +354,12 @@ export default function Products() {
                         <span className={cn(
                           'px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap',
                           ptaStatus === 'approved' 
-                            ? 'bg-green-50 text-green-700 border-green-200' 
+                            ? 'bg-green-50 text-green-700 border-green-200' :
+                          ptaStatus === 'mixed'
+                            ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
                             : 'bg-red-50 text-red-700 border-red-200'
                         )}>
-                          {ptaStatus === 'approved' ? 'PTA Approved' : 'Non PTA'}
+                          {ptaStatus === 'approved' ? 'PTA Approved' : ptaStatus === 'mixed' ? 'Mixed PTA' : 'Non PTA'}
                         </span>
                       )}
                     </h3>

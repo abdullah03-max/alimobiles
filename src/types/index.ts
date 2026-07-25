@@ -34,6 +34,8 @@ type ProductIMEI = {
   imei2: string;
   status: 'available' | 'sold';
   color?: string;
+  condition?: 'new' | 'used' | 'refurbished' | 'open_box';
+  ptaStatus?: 'approved' | 'non-approved';
   createdAt: string;
   updatedAt: string;
   soldAt?: string;

@@ -84,18 +84,25 @@ export default function Inventory() {
       const brandName = getBrandName(p.brandId);
       const modelName = getModelName(p.name, brandName);
 
-      // Predefined colors and PTA Status
+      // Predefined colors
       let parsedColors: string[] = [];
-      let ptaStatus = '';
       if (p.color) parsedColors.push(p.color);
       if (p.description && p.description.startsWith('{')) {
         try {
           const parsed = JSON.parse(p.description);
           if (parsed.colors) parsedColors.push(...parsed.colors);
-          ptaStatus = parsed.ptaStatus || '';
         } catch (e) {
           // Ignore parse errors
         }
+      }
+
+      // PTA Status resolved dynamically from available IMEIs
+      let ptaStatus = '';
+      if (availableImeis.length > 0) {
+        const approvedCount = availableImeis.filter(i => i.ptaStatus === 'approved').length;
+        if (approvedCount === availableImeis.length) ptaStatus = 'approved';
+        else if (approvedCount === 0) ptaStatus = 'non-approved';
+        else ptaStatus = 'mixed';
       }
 
       // Add colors from actual IMEIs
@@ -360,10 +367,12 @@ export default function Inventory() {
                           <span className={cn(
                             'px-2.5 py-0.5 rounded-full text-xs font-semibold border',
                             p.ptaStatus === 'approved' 
-                              ? 'bg-green-50 text-green-700 border-green-100' 
+                              ? 'bg-green-50 text-green-700 border-green-100' :
+                            p.ptaStatus === 'mixed'
+                              ? 'bg-yellow-50 text-yellow-700 border-yellow-100'
                               : 'bg-red-50 text-red-700 border-red-100'
                           )}>
-                            {p.ptaStatus === 'approved' ? 'PTA Approved' : 'Non PTA'}
+                            {p.ptaStatus === 'approved' ? 'PTA Approved' : p.ptaStatus === 'mixed' ? 'Mixed PTA' : 'Non PTA'}
                           </span>
                         )}
                       </div>

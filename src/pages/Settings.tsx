@@ -167,6 +167,8 @@ export default function Settings() {
             Color: imeiObj.color || '',
             RAM: imeiObj.ram || '',
             Storage: imeiObj.storage || '',
+            Condition: imeiObj.condition || '',
+            'PTA Status': imeiObj.ptaStatus || '',
             Status: imeiObj.status,
             CreatedAt: p.createdAt,
           });
@@ -187,6 +189,8 @@ export default function Settings() {
           Color: '',
           RAM: '',
           Storage: '',
+          Condition: p.condition || '',
+          'PTA Status': '',
           Status: p.status,
           CreatedAt: p.createdAt,
         });

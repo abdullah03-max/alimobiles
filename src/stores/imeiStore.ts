@@ -15,6 +15,8 @@ function toCamelCase(row: any): ProductIMEI {
     imei2: row.imei2 || '',
     status: row.status || 'available',
     color: row.color || undefined,
+    condition: row.condition || undefined,
+    ptaStatus: row.pta_status || undefined,
     ram: row.ram || undefined,
     storage: row.storage || undefined,
     soldAt: row.sold_at || undefined,
@@ -27,7 +29,7 @@ interface ImeiState {
   imeis: ProductIMEI[];
   loading: boolean;
   loadData: () => Promise<void>;
-  addImei: (productId: string, imei1: string, imei2: string, color?: string, ram?: string, storage?: string) => Promise<ProductIMEI | null>;
+  addImei: (productId: string, imei1: string, imei2: string, color?: string, ram?: string, storage?: string, condition?: string, ptaStatus?: string) => Promise<ProductIMEI | null>;
   removeImei: (id: string) => Promise<void>;
   findByImei: (imei: string) => ProductIMEI | undefined;
   isImeiUnique: (imei: string) => boolean;
@@ -85,7 +87,7 @@ export const useImeiStore = create<ImeiState>((set, get) => ({
   },
 
   // ──────────────────────── Add IMEI to Supabase ────────────────────────
-  addImei: async (productId, imei1, imei2, color, ram, storage) => {
+  addImei: async (productId, imei1, imei2, color, ram, storage, condition, ptaStatus) => {
     const normalized1 = imei1.trim();
     const normalized2 = imei2.trim();
     if (!normalized1 || !normalized2) return null;
@@ -100,6 +102,8 @@ export const useImeiStore = create<ImeiState>((set, get) => ({
       color: color || null,
       ram: ram || null,
       storage: storage || null,
+      condition: condition || null,
+      pta_status: ptaStatus || null,
     };
 
     const { data, error } = await supabase

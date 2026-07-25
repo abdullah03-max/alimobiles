@@ -68,6 +68,9 @@ export const useCartStore = create<CartState>((set, get) => ({
 
     if (itemImei) {
       const imeiRecord = useImeiStore.getState().findByImei(itemImei);
+      if (imeiRecord?.ptaStatus) {
+        ptaStatus = imeiRecord.ptaStatus;
+      }
       const imei1 = imeiRecord?.imei1 || itemImei;
       const imei2 = imeiRecord?.imei2 || '';
       const normalizedTargets = [normalize(imei1), normalize(imei2)].filter(Boolean);

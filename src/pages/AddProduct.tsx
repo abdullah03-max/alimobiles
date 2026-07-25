@@ -57,9 +57,6 @@ export default function AddProduct() {
   const [colorsList, setColorsList] = useState<string[]>([]);
   const [newColorInput, setNewColorInput] = useState('');
 
-  // PTA status state
-  const [ptaStatus, setPtaStatus] = useState<'approved' | 'non-approved'>('approved');
-
   const initializedProductId = useRef<string | null>(null);
 
   useEffect(() => {
@@ -76,11 +73,10 @@ export default function AddProduct() {
     const product = products.find(p => p.id === id);
     if (!product) return;
 
-    // Parse description for colors, variants and PTA status
+    // Parse description for colors, variants
     let descriptionText = product.description || '';
     let parsedColors: string[] = [];
     let parsedVariants: { ram: string; storage: string; costPrice: number; salePrice: number; wholesalePrice: number }[] = [];
-    let parsedPtaStatus: 'approved' | 'non-approved' = 'approved';
     if (descriptionText.startsWith('{')) {
       try {
         const parsed = JSON.parse(descriptionText);
@@ -92,14 +88,11 @@ export default function AddProduct() {
           salePrice: typeof v.salePrice === 'number' ? v.salePrice : (product.salePrice || 0),
           wholesalePrice: typeof v.wholesalePrice === 'number' ? v.wholesalePrice : (product.wholesalePrice || 0)
         }));
-        parsedPtaStatus = parsed.ptaStatus || 'approved';
         descriptionText = parsed.text || '';
       } catch (e) {
         // fallback
       }
     }
-
-    setPtaStatus(parsedPtaStatus);
 
     setForm({
       name: product.name,
@@ -229,11 +222,10 @@ export default function AddProduct() {
       }
     }
 
-    // Serialize colors, variants, and PTA status inside the description field
+    // Serialize colors and variants inside the description field
     const descriptionPayload = JSON.stringify({
       colors: colorsList,
       variants: variantsList,
-      ptaStatus,
       text: form.description
     });
 
@@ -382,52 +374,7 @@ export default function AddProduct() {
               />
             </div>
 
-            <div className="space-y-1.5 pt-1">
-              <Label className="text-xs font-semibold text-gray-750">PTA Status *</Label>
-              <div className="flex gap-4 items-center">
-                <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-gray-800">
-                  <input
-                    type="radio"
-                    name="ptaStatus"
-                    value="approved"
-                    checked={ptaStatus === 'approved'}
-                    onChange={() => setPtaStatus('approved')}
-                    className="w-4 h-4 text-orange-500 border-gray-350 focus:ring-orange-500 accent-orange-500"
-                  />
-                  PTA Approved
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-gray-800">
-                  <input
-                    type="radio"
-                    name="ptaStatus"
-                    value="non-approved"
-                    checked={ptaStatus === 'non-approved'}
-                    onChange={() => setPtaStatus('non-approved')}
-                    className="w-4 h-4 text-orange-500 border-gray-350 focus:ring-orange-500 accent-orange-500"
-                  />
-                  Non PTA
-                </label>
-              </div>
-            </div>
-
-            <div className="space-y-1.5 pt-1">
-              <Label className="text-xs font-semibold text-gray-750">Condition *</Label>
-              <div className="flex gap-4 items-center">
-                {['new', 'used', 'open_box', 'refurbished'].map(c => (
-                  <label key={c} className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-gray-800 capitalize">
-                    <input
-                      type="radio"
-                      name="condition"
-                      value={c}
-                      checked={form.condition === c}
-                      onChange={() => handleChange('condition', c)}
-                      className="w-4 h-4 text-orange-500 border-gray-350 focus:ring-orange-500 accent-orange-500"
-                    />
-                    {c === 'open_box' ? 'Open Box' : c}
-                  </label>
-                ))}
-              </div>
-            </div>
+            {/* Condition and PTA fields have been moved to the Add IMEI page */}
 
             {/* Predefined Color Options */}
             <div className="space-y-2 border-t pt-4">

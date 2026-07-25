@@ -23,6 +23,8 @@ export default function ProductImeis() {
   const [imeiInput2, setImeiInput2] = useState('');
   const [selectedColor, setSelectedColor] = useState('');
   const [selectedVariantIdx, setSelectedVariantIdx] = useState('');
+  const [selectedCondition, setSelectedCondition] = useState<'new' | 'used' | 'open_box' | 'refurbished'>('new');
+  const [selectedPtaStatus, setSelectedPtaStatus] = useState<'approved' | 'non-approved'>('approved');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [expandedColors, setExpandedColors] = useState<Record<string, boolean>>({});
@@ -167,7 +169,7 @@ export default function ProductImeis() {
     }
 
     setLoading(true);
-    const added = await addImei(productId, first, second, selectedColor || undefined, ramToUse, storageToUse);
+    const added = await addImei(productId, first, second, selectedColor || undefined, ramToUse, storageToUse, selectedCondition, selectedPtaStatus);
     setLoading(false);
 
     if (!added) {
@@ -337,6 +339,36 @@ export default function ProductImeis() {
                 </div>
               )}
               
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label htmlFor="condition-select" className="text-xs font-semibold">Condition *</Label>
+                  <select
+                    id="condition-select"
+                    value={selectedCondition}
+                    onChange={(e) => setSelectedCondition(e.target.value as any)}
+                    className="w-full mt-1.5 h-9 px-3 border border-gray-300 rounded-md text-sm bg-white focus:ring-1 focus:ring-orange-500 focus:border-orange-500"
+                  >
+                    <option value="new">New</option>
+                    <option value="used">Used</option>
+                    <option value="open_box">Open Box</option>
+                    <option value="refurbished">Refurbished</option>
+                  </select>
+                </div>
+
+                <div>
+                  <Label htmlFor="pta-select" className="text-xs font-semibold">PTA Status *</Label>
+                  <select
+                    id="pta-select"
+                    value={selectedPtaStatus}
+                    onChange={(e) => setSelectedPtaStatus(e.target.value as any)}
+                    className="w-full mt-1.5 h-9 px-3 border border-gray-300 rounded-md text-sm bg-white focus:ring-1 focus:ring-orange-500 focus:border-orange-500"
+                  >
+                    <option value="approved">PTA Approved</option>
+                    <option value="non-approved">Non PTA</option>
+                  </select>
+                </div>
+              </div>
+
               <div>
                 <Label htmlFor="imei1-input" className="text-xs font-semibold">IMEI 1</Label>
                 <Input
@@ -478,6 +510,8 @@ export default function ProductImeis() {
                                   <p className="text-xs text-gray-500 mt-1">
                                     Added: {formatDate(imei.createdAt, 'MMM DD, YYYY hh:mm a')}
                                     {imei.ram || imei.storage ? ` • ${imei.ram || ''}/${imei.storage || ''}` : ''}
+                                    {imei.condition ? ` • ${imei.condition === 'open_box' ? 'Open Box' : imei.condition.toUpperCase()}` : ''}
+                                    {imei.ptaStatus ? ` • PTA: ${imei.ptaStatus === 'approved' ? 'Approved' : 'Non PTA'}` : ''}
                                   </p>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -512,6 +546,8 @@ export default function ProductImeis() {
                                   <p className="text-xs text-gray-500 mt-1">
                                     Sold: {imei.soldAt ? formatDate(imei.soldAt, 'MMM DD, YYYY hh:mm a') : 'N/A'}
                                     {imei.ram || imei.storage ? ` • ${imei.ram || ''}/${imei.storage || ''}` : ''}
+                                    {imei.condition ? ` • ${imei.condition === 'open_box' ? 'Open Box' : imei.condition.toUpperCase()}` : ''}
+                                    {imei.ptaStatus ? ` • PTA: ${imei.ptaStatus === 'approved' ? 'Approved' : 'Non PTA'}` : ''}
                                   </p>
                                 </div>
                                 <span className="px-2 py-1 rounded-full bg-red-100 text-red-700 text-xs font-semibold">Sold</span>
