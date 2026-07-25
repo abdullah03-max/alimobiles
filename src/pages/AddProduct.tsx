@@ -467,19 +467,7 @@ export default function AddProduct() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Condition</Label>
-                <div className="flex gap-3 mt-2">
-                  {(['new', 'used', 'refurbished'] as const).map(c => (
-                    <label key={c} className="flex items-center gap-1.5 text-sm cursor-pointer select-none">
-                      <input type="radio" name="condition" checked={form.condition === c} onChange={() => handleChange('condition', c)} className="accent-orange-500" />
-                      <span className="capitalize text-gray-700">{c}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
+            {/* Condition radio buttons have been removed from here */}
           </div>
         </div>
 
