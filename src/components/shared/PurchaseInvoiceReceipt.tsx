@@ -242,10 +242,8 @@ export default function PurchaseInvoiceReceipt({
         runningIndex += 1;
         const snoStr = padText(String(runningIndex), snoWidth, 'left');
         let productDesc = group.productName || '';
-        if (group.brandName) {
-          productDesc += ` (${group.brandName}`;
-          if (group.model) productDesc += ` ${group.model}`;
-          productDesc += ')';
+        if (group.model) {
+          productDesc += ` (${group.model})`;
         }
         if (group.storage) productDesc += ` ${group.storage}`;
         const colorValue = group.imeis[i].color || getProductById(group.productId)?.color;
@@ -399,8 +397,7 @@ export default function PurchaseInvoiceReceipt({
                 <td className="border border-black p-2 text-center">{groupedA4.slice(0, index).reduce((sum: number, g: any) => sum + g.imeis.length, 0) + i + 1}</td>
                 <td className="border border-black p-2 text-left">
                   <div className="font-bold uppercase">{group.productName}</div>
-                  {group.brandName && <div className="text-[10px] text-gray-600 mt-0.5">Brand: {group.brandName}</div>}
-                  {group.model && <div className="text-[10px] text-gray-600">Model: {group.model}</div>}
+                  {group.model && <div className="text-[10px] text-gray-600 mt-0.5">Model: {group.model}</div>}
                   {(im.ram && im.storage) ? (
                     <div className="text-[10px] text-blue-700 font-bold">Variant: {im.ram} / {im.storage}</div>
                   ) : (
@@ -485,32 +482,7 @@ export default function PurchaseInvoiceReceipt({
           </div>
         </div>
 
-        {/* IMEI Barcode Section (Moved to the very end) */}
-        {(() => {
-          const imeiItems = purchase.items.filter(item => (item.imei1 && item.imei1.trim() !== '') || (item.imei && item.imei.trim() !== ''));
-          if (imeiItems.length > 0) {
-            return (
-              <div className="border-t border-dashed border-gray-300 pt-4 flex flex-col items-center space-y-3 barcode-container">
-                <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">IMEI Barcodes</span>
-                <div className="flex flex-col items-center gap-3 w-full">
-                  {imeiItems.map((item, idx) => (
-                    <div key={idx} className="flex flex-col items-center gap-1 w-full border border-black p-2 bg-white rounded">
-                      <span className="text-[10px] font-bold text-black">IMEI 1: {item.imei1 || item.imei}</span>
-                      <Barcode value={item.imei1 || item.imei!} height={40} widthScale={1.2} />
-                      {item.imei2 && (
-                        <>
-                          <span className="text-[10px] font-bold text-black mt-2">IMEI 2: {item.imei2}</span>
-                          <Barcode value={item.imei2} height={40} widthScale={1.2} />
-                        </>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          }
-          return null;
-        })()}
+
 
         {/* Bottom Metadata Line */}
         <div className="flex justify-end text-[10px] text-gray-400 border-t pt-2 mt-2">
@@ -612,7 +584,6 @@ export default function PurchaseInvoiceReceipt({
                     <td className="py-1.5 align-top">{groupedScreen.slice(0, index).reduce((sum: number, g: any) => sum + g.imeis.length, 0) + i + 1}</td>
                     <td className="py-1.5 align-top break-words">
                       <div className="font-semibold text-gray-900">{group.productName}</div>
-                      {group.brandName && <div className="text-[10px] text-gray-600">Brand: {group.brandName}</div>}
                       {group.model && <div className="text-[10px] text-gray-600">Model: {group.model}</div>}
                       {group.storage && <div className="text-[10px] text-gray-600">Storage: {group.storage}</div>}
                       {im.imei && (

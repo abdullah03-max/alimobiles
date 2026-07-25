@@ -66,8 +66,11 @@ export function generateInvoiceNumber(prefix = 'INV', nextNumber?: number): stri
   return `${prefix}-${year}-${timestamp}-${random}`;
 }
 
-export function generatePONumber(): string {
+export function generatePONumber(nextNumber?: number): string {
   const prefix = 'PO';
+  if (typeof nextNumber === 'number') {
+    return `${prefix}-${String(nextNumber).padStart(5, '0')}`;
+  }
   const year = new Date().getFullYear();
   const timestamp = Date.now().toString().slice(-6);
   const random = Math.floor(1000 + Math.random() * 9000);

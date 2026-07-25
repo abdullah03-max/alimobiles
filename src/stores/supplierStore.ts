@@ -132,7 +132,54 @@ export const useSupplierStore = create<SupplierState>((set, get) => ({
 
   addPurchase: async (purchase) => {
     try {
-      const poNumber = generatePONumber();
+      // Find the next incremental PO number suffix (e.g. PO-00001)
+      let maxSuffix = 0;
+      const prefixWithDash = 'PO-';
+      
+      const extractPOSuffix = (poNum: string) => {
+        const trimmed = poNum?.trim();
+        if (!trimmed) return undefined;
+        if (trimmed.startsWith(prefixWithDash)) {
+          const suffixStr = trimmed.slice(prefixWithDash.length);
+          const parsed = parseInt(suffixStr, 10);
+          return isNaN(parsed) ? undefined : parsed;
+        }
+        return undefined;
+      };
+
+      // Scan local store state
+      get().purchases.forEach(p => {
+        if (!p.poNumber) return;
+        const suffix = extractPOSuffix(p.poNumber);
+        if (typeof suffix === 'number' && suffix > maxSuffix) {
+          maxSuffix = suffix;
+        }
+      });
+
+      // Scan database (highest 100 limit to get latest sequence)
+      try {
+        const { data: latestPurchases } = await supabase
+          .from('purchases')
+          .select('po_number')
+          .order('created_at', { ascending: false })
+          .limit(100);
+
+        if (latestPurchases?.length) {
+          latestPurchases.forEach(row => {
+            if (row?.po_number) {
+              const suffix = extractPOSuffix(row.po_number);
+              if (typeof suffix === 'number' && suffix > maxSuffix) {
+                maxSuffix = suffix;
+              }
+            }
+          });
+        }
+      } catch (dbErr) {
+        console.warn('Failed to query latest purchases sequence:', dbErr);
+      }
+
+      const nextNumber = maxSuffix + 1;
+      const poNumber = generatePONumber(nextNumber);
       const purchaseData = {
         ...purchase,
         poNumber,
