@@ -25,7 +25,7 @@ export default function Suppliers() {
 
   useEffect(() => { loadData(); }, []);
 
-  const filtered = suppliers.filter(s => !search || s.name.toLowerCase().includes(search.toLowerCase()) || s.phone.includes(search));
+  const filtered = suppliers.filter(s => s.name !== 'Walk-in Buy Back' && (!search || s.name.toLowerCase().includes(search.toLowerCase()) || s.phone.includes(search)));
 
   const openAdd = () => { setEditId(null); setForm({ name: '', contactPerson: '', phone: '', email: '', address: '', city: '', notes: '', status: 'active' }); setErrors({}); setModalOpen(true); };
   const openEdit = (s: typeof suppliers[0]) => { setEditId(s.id); setForm({ name: s.name, contactPerson: s.contactPerson, phone: s.phone, email: s.email, address: s.address, city: s.city, notes: s.notes, status: s.status }); setErrors({}); setModalOpen(true); };

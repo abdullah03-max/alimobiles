@@ -32,6 +32,18 @@ export default function Sales() {
     loadSettings();
   }, []);
 
+  // Support opening specific invoice on mount or URL params change
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const invoiceNum = params.get('invoice');
+    if (invoiceNum && sales.length > 0) {
+      const found = sales.find(s => s.invoiceNumber.toLowerCase() === invoiceNum.trim().toLowerCase());
+      if (found) {
+        setViewSale(found);
+      }
+    }
+  }, [sales]);
+
   // If user scans an IMEI in the search box, open its sale invoice immediately
   useEffect(() => {
     const q = search.trim();

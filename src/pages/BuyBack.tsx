@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/useToast';
 import { useImeiStore } from '@/stores/imeiStore';
 import { useProductStore } from '@/stores/productStore';
@@ -23,6 +24,7 @@ import {
 
 export default function BuyBack() {
   const toast = useToast();
+  const navigate = useNavigate();
   const { findByImei, markImeiAvailable, loadData: loadImeiData } = useImeiStore();
   const { products, updateProduct, loadData: loadProductData } = useProductStore();
   const { sales, loadData: loadSaleData } = useSaleStore();
@@ -1077,7 +1079,31 @@ export default function BuyBack() {
                 <div className="space-y-1">
                   <span className="text-xs text-gray-400 font-medium">Transaction Notes</span>
                   <div className="bg-amber-50/50 border border-amber-100 rounded-lg p-3 text-xs text-gray-700 font-medium italic">
-                    {viewingPurchase.notes}
+                    {(() => {
+                      const noteText = viewingPurchase.notes;
+                      const match = noteText.match(/(Previous invoice:\s*)(INV-\d+)/i);
+                      if (match) {
+                        const invoiceNum = match[2];
+                        const parts = noteText.split(match[0]);
+                        return (
+                          <>
+                            {parts[0]}
+                            {match[1]}
+                            <span 
+                              className="text-blue-600 hover:text-blue-800 underline font-bold cursor-pointer transition-colors"
+                              onClick={() => {
+                                setViewingPurchase(null);
+                                navigate(`/sales?invoice=${invoiceNum}`);
+                              }}
+                            >
+                              {invoiceNum}
+                            </span>
+                            {parts[1]}
+                          </>
+                        );
+                      }
+                      return noteText;
+                    })()}
                   </div>
                 </div>
               )}
