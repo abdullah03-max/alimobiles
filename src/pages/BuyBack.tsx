@@ -23,7 +23,7 @@ import {
 
 export default function BuyBack() {
   const toast = useToast();
-  const { findByImei, markImeiAvailable } = useImeiStore();
+  const { findByImei, markImeiAvailable, loadData: loadImeiData } = useImeiStore();
   const { products, updateProduct, loadData: loadProductData } = useProductStore();
   const { sales, loadData: loadSaleData } = useSaleStore();
   const { purchases, suppliers, addSupplier, addPurchase, updatePurchase, deletePurchase, loadData: loadSupplierData } = useSupplierStore();
@@ -280,6 +280,7 @@ export default function BuyBack() {
     loadProductData();
     loadSaleData();
     loadSupplierData();
+    loadImeiData();
   }, []);
 
   // Search IMEI handler
