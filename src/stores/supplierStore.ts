@@ -139,10 +139,10 @@ export const useSupplierStore = create<SupplierState>((set, get) => ({
       const extractPOSuffix = (poNum: string) => {
         const trimmed = poNum?.trim();
         if (!trimmed) return undefined;
-        if (trimmed.startsWith(prefixWithDash)) {
-          const suffixStr = trimmed.slice(prefixWithDash.length);
-          const parsed = parseInt(suffixStr, 10);
-          return isNaN(parsed) ? undefined : parsed;
+        // Strictly match PO- followed by only digits (e.g. PO-0001)
+        const match = trimmed.match(/^PO-(\d+)$/i);
+        if (match) {
+          return parseInt(match[1], 10);
         }
         return undefined;
       };

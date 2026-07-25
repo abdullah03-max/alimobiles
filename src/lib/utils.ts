@@ -69,7 +69,7 @@ export function generateInvoiceNumber(prefix = 'INV', nextNumber?: number): stri
 export function generatePONumber(nextNumber?: number): string {
   const prefix = 'PO';
   if (typeof nextNumber === 'number') {
-    return `${prefix}-${String(nextNumber).padStart(5, '0')}`;
+    return `${prefix}-${String(nextNumber).padStart(4, '0')}`;
   }
   const year = new Date().getFullYear();
   const timestamp = Date.now().toString().slice(-6);
