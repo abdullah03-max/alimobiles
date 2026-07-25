@@ -354,6 +354,14 @@ export default function Products() {
             const availableImeis = productImeis.filter(i => i.status === 'available');
             const soldImeis = productImeis.filter(i => i.status === 'sold');
 
+            const availablePtaApproved = availableImeis.filter(i => i.ptaStatus === 'approved').length;
+            const availableNonPta = availableImeis.filter(i => i.ptaStatus === 'non-approved').length;
+            
+            const availableNew = availableImeis.filter(i => i.condition === 'new').length;
+            const availableUsed = availableImeis.filter(i => i.condition === 'used').length;
+            const availableOpenBox = availableImeis.filter(i => i.condition === 'open_box').length;
+            const availableRefurbished = availableImeis.filter(i => i.condition === 'refurbished').length;
+
             let ptaStatus: string = '';
             if (availableImeis.length > 0) {
               const approvedCount = availableImeis.filter(i => i.ptaStatus === 'approved').length;
@@ -490,7 +498,7 @@ export default function Products() {
 
                 {/* Right Column: Stock Stats & IMEI registry */}
                 <div className="space-y-4 border-t md:border-t-0 md:border-l md:pl-6 pt-4 md:pt-0">
-                  <div className="border rounded-lg p-3 space-y-2 bg-gray-50/50">
+                  <div className="border rounded-lg p-3 space-y-3 bg-gray-50/50">
                     <div className="flex justify-between items-center">
                       <h4 className="font-semibold text-gray-850 text-xs uppercase tracking-wider">Stock Stats</h4>
                       <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full font-semibold">Total: {detailProduct.stockQuantity}</span>
@@ -506,6 +514,48 @@ export default function Products() {
                         Sold
                       </div>
                     </div>
+
+                    {/* PTA status summary */}
+                    {availableImeis.length > 0 && (
+                      <div className="space-y-1.5 pt-1.5 border-t border-gray-200">
+                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">PTA Breakdown (Available)</span>
+                        <div className="grid grid-cols-2 gap-2 text-center text-xs">
+                          <div className="bg-white border border-green-50 rounded p-1.5 text-green-800 shadow-xs flex items-center justify-between px-2.5">
+                            <span className="text-[11px] font-semibold">Approved</span>
+                            <span className="font-bold text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">{availablePtaApproved}</span>
+                          </div>
+                          <div className="bg-white border border-red-50 rounded p-1.5 text-red-800 shadow-xs flex items-center justify-between px-2.5">
+                            <span className="text-[11px] font-semibold">Non PTA</span>
+                            <span className="font-bold text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full">{availableNonPta}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Conditions summary */}
+                    {availableImeis.length > 0 && (
+                      <div className="space-y-1.5 pt-1.5 border-t border-gray-200">
+                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Condition Breakdown (Available)</span>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-center text-[10px]">
+                          <div className="bg-white border border-green-50 rounded p-1.5 shadow-xs flex flex-col justify-center items-center">
+                            <span className="font-bold text-xs text-green-700">{availableNew}</span>
+                            <span className="text-gray-500 font-semibold mt-0.5">New</span>
+                          </div>
+                          <div className="bg-white border border-orange-50 rounded p-1.5 shadow-xs flex flex-col justify-center items-center">
+                            <span className="font-bold text-xs text-orange-700">{availableUsed}</span>
+                            <span className="text-gray-500 font-semibold mt-0.5">Used</span>
+                          </div>
+                          <div className="bg-white border border-amber-50 rounded p-1.5 shadow-xs flex flex-col justify-center items-center">
+                            <span className="font-bold text-xs text-amber-700">{availableOpenBox}</span>
+                            <span className="text-gray-500 font-semibold mt-0.5">Open Box</span>
+                          </div>
+                          <div className="bg-white border border-blue-50 rounded p-1.5 shadow-xs flex flex-col justify-center items-center">
+                            <span className="font-bold text-xs text-blue-700">{availableRefurbished}</span>
+                            <span className="text-gray-500 font-semibold mt-0.5">Refurbished</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {productImeis.length > 0 && (() => {
