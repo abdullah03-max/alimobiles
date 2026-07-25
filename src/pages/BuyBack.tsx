@@ -472,25 +472,27 @@ export default function BuyBack() {
         throw new Error('Failed to restore IMEI status to available');
       }
 
-      // Update IMEI's ram/storage in database if selected/changed
+      // Update IMEI's ram/storage/condition in database if selected/changed
       const { error: imeiUpdateErr } = await supabase
         .from('product_imeis')
         .update({ 
           ram: ramToUse || null, 
           storage: storageToUse || null,
+          condition: condition || null,
           updated_at: new Date().toISOString()
         })
         .eq('id', matchedImei.id);
         
       if (imeiUpdateErr) {
-        console.error('Failed to update IMEI RAM/Storage:', imeiUpdateErr);
+        console.error('Failed to update IMEI RAM/Storage/Condition:', imeiUpdateErr);
       } else {
         // Update in-memory state of imeiStore
         useImeiStore.setState(state => ({
           imeis: state.imeis.map(i => i.id === matchedImei.id ? { 
             ...i, 
             ram: ramToUse, 
-            storage: storageToUse
+            storage: storageToUse,
+            condition: condition
           } : i)
         }));
       }
@@ -532,12 +534,11 @@ export default function BuyBack() {
         } catch (err) {}
       }
 
-      // 4. Save updated prices and condition on the Product
+      // 4. Save updated prices on the Product
       await updateProduct(product.id, {
         costPrice: firstCost,
         salePrice: firstSale,
         wholesalePrice: firstWholesale,
-        condition,
         description: updatedDescription
       });
 
@@ -694,7 +695,7 @@ export default function BuyBack() {
                     <div>
                       <span className="text-gray-400 text-xs">Sale Date</span>
                       <p className="font-semibold text-gray-800">
-                        {formatDate(previousSale.sale.createdAt, 'MMM DD, YYYY hh:mm a')}
+                        {formatDate(previousSale.sale.createdAt, 'MMM dd, yyyy hh:mm a')}
                       </p>
                     </div>
                     <div>
@@ -880,7 +881,7 @@ export default function BuyBack() {
                   <div className="bg-gray-50 rounded-lg p-3 border hover:border-gray-300 transition-colors">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <span className="text-xs text-gray-400 font-medium flex items-center gap-1">
-                        <Calendar className="h-3 w-3" /> {formatDate(event.date, 'MMM DD, YYYY hh:mm a')}
+                        <Calendar className="h-3 w-3" /> {formatDate(event.date, 'MMM dd, yyyy hh:mm a')}
                       </span>
                       <span className={cn('px-2.5 py-0.5 text-[10px] font-bold uppercase rounded border tracking-wider', event.badgeColor)}>
                         {event.badge}
@@ -938,7 +939,7 @@ export default function BuyBack() {
                     return (
                       <tr key={purchase.id} className="hover:bg-gray-50/50 transition-colors">
                         <td className="px-5 py-3.5 text-gray-600 font-medium">
-                          {formatDate(purchase.createdAt, 'MMM DD, YYYY')}
+                          {formatDate(purchase.createdAt, 'MMM dd, yyyy')}
                         </td>
                         <td className="px-5 py-3.5 font-bold text-gray-700 uppercase">
                           {purchase.poNumber}
@@ -1022,7 +1023,7 @@ export default function BuyBack() {
                 <div>
                   <span className="text-gray-400 block font-medium">Date</span>
                   <span className="font-semibold text-gray-700">
-                    {formatDate(viewingPurchase.createdAt, 'MMM DD, YYYY hh:mm a')}
+                    {formatDate(viewingPurchase.createdAt, 'MMM dd, yyyy hh:mm a')}
                   </span>
                 </div>
                 <div>

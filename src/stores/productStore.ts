@@ -200,6 +200,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
       set({ products });
     } catch (err) {
       console.error('Error updating product:', err);
+      throw err;
     }
   },
 

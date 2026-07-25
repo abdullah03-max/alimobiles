@@ -508,7 +508,7 @@ export default function ProductImeis() {
                                 <div className="flex-1">
                                   <p className="font-mono font-semibold text-gray-900 text-sm">{imei.imei}</p>
                                   <p className="text-xs text-gray-500 mt-1">
-                                    Added: {formatDate(imei.createdAt, 'MMM DD, YYYY hh:mm a')}
+                                    Added: {formatDate(imei.createdAt, 'MMM dd, yyyy hh:mm a')}
                                     {imei.ram || imei.storage ? ` • ${imei.ram || ''}/${imei.storage || ''}` : ''}
                                     {imei.condition ? ` • ${imei.condition === 'open_box' ? 'Open Box' : imei.condition.toUpperCase()}` : ''}
                                     {imei.ptaStatus ? ` • PTA: ${imei.ptaStatus === 'approved' ? 'Approved' : 'Non PTA'}` : ''}
@@ -544,7 +544,7 @@ export default function ProductImeis() {
                                 <div className="flex-1">
                                   <p className="font-mono font-semibold text-gray-600 text-sm line-through">{imei.imei}</p>
                                   <p className="text-xs text-gray-500 mt-1">
-                                    Sold: {imei.soldAt ? formatDate(imei.soldAt, 'MMM DD, YYYY hh:mm a') : 'N/A'}
+                                    Sold: {imei.soldAt ? formatDate(imei.soldAt, 'MMM dd, yyyy hh:mm a') : 'N/A'}
                                     {imei.ram || imei.storage ? ` • ${imei.ram || ''}/${imei.storage || ''}` : ''}
                                     {imei.condition ? ` • ${imei.condition === 'open_box' ? 'Open Box' : imei.condition.toUpperCase()}` : ''}
                                     {imei.ptaStatus ? ` • PTA: ${imei.ptaStatus === 'approved' ? 'Approved' : 'Non PTA'}` : ''}
