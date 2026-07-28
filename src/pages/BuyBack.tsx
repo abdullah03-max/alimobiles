@@ -465,6 +465,43 @@ export default function BuyBack() {
 
     setSubmitting(true);
     try {
+      // Update variant specs prices in description JSON
+      let updatedDescription = product.description;
+      if (product.description && product.description.startsWith('{') && selectedVariantIdx !== '') {
+        try {
+          const parsed = JSON.parse(product.description);
+          const variants = parsed.variants || [];
+          const idx = parseInt(selectedVariantIdx);
+          if (variants[idx]) {
+            variants[idx] = {
+              ...variants[idx],
+              costPrice: buyBackPrice,
+              salePrice: newSalePrice,
+              wholesalePrice: newWholesalePrice
+            };
+            parsed.variants = variants;
+            updatedDescription = JSON.stringify(parsed);
+          }
+        } catch (err) {}
+      }
+
+      // Calculate first variant fallback prices
+      let firstCost = buyBackPrice;
+      let firstSale = newSalePrice;
+      let firstWholesale = newWholesalePrice;
+
+      if (updatedDescription && updatedDescription.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(updatedDescription);
+          const variants = parsed.variants || [];
+          if (variants.length > 0) {
+            firstCost = variants[0].costPrice ?? firstCost;
+            firstSale = variants[0].salePrice ?? firstSale;
+            firstWholesale = variants[0].wholesalePrice ?? firstWholesale;
+          }
+        } catch (err) {}
+      }
+
       // 1. Find or create default supplier
       let buyBackSupplier: any = suppliers.find(s => s.name === 'Walk-in Buy Back');
       if (!buyBackSupplier) {
@@ -516,42 +553,7 @@ export default function BuyBack() {
         }));
       }
 
-      // 3. Update variant specs prices in description JSON
-      let updatedDescription = product.description;
-      if (product.description && product.description.startsWith('{') && selectedVariantIdx !== '') {
-        try {
-          const parsed = JSON.parse(product.description);
-          const variants = parsed.variants || [];
-          const idx = parseInt(selectedVariantIdx);
-          if (variants[idx]) {
-            variants[idx] = {
-              ...variants[idx],
-              costPrice: buyBackPrice,
-              salePrice: newSalePrice,
-              wholesalePrice: newWholesalePrice
-            };
-            parsed.variants = variants;
-            updatedDescription = JSON.stringify(parsed);
-          }
-        } catch (err) {}
-      }
 
-      // Calculate first variant fallback prices
-      let firstCost = buyBackPrice;
-      let firstSale = newSalePrice;
-      let firstWholesale = newWholesalePrice;
-
-      if (updatedDescription && updatedDescription.startsWith('{')) {
-        try {
-          const parsed = JSON.parse(updatedDescription);
-          const variants = parsed.variants || [];
-          if (variants.length > 0) {
-            firstCost = variants[0].costPrice ?? firstCost;
-            firstSale = variants[0].salePrice ?? firstSale;
-            firstWholesale = variants[0].wholesalePrice ?? firstWholesale;
-          }
-        } catch (err) {}
-      }
 
       // 4. Save updated prices on the Product
       await updateProduct(product.id, {
