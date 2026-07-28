@@ -22,6 +22,9 @@ function toCamelCase(row: any): ProductIMEI {
     soldAt: row.sold_at || undefined,
     createdAt: row.created_at || new Date().toISOString(),
     updatedAt: row.updated_at || new Date().toISOString(),
+    costPrice: row.cost_price ? Number(row.cost_price) : undefined,
+    salePrice: row.sale_price ? Number(row.sale_price) : undefined,
+    wholesalePrice: row.wholesale_price ? Number(row.wholesale_price) : undefined,
   };
 }
 
@@ -29,7 +32,7 @@ interface ImeiState {
   imeis: ProductIMEI[];
   loading: boolean;
   loadData: () => Promise<void>;
-  addImei: (productId: string, imei1: string, imei2: string, color?: string, ram?: string, storage?: string, condition?: string, ptaStatus?: string) => Promise<ProductIMEI | null>;
+  addImei: (productId: string, imei1: string, imei2: string, color?: string, ram?: string, storage?: string, condition?: string, ptaStatus?: string, costPrice?: number, salePrice?: number, wholesalePrice?: number) => Promise<ProductIMEI | null>;
   removeImei: (id: string) => Promise<void>;
   findByImei: (imei: string) => ProductIMEI | undefined;
   isImeiUnique: (imei: string) => boolean;
@@ -87,7 +90,7 @@ export const useImeiStore = create<ImeiState>((set, get) => ({
   },
 
   // ──────────────────────── Add IMEI to Supabase ────────────────────────
-  addImei: async (productId, imei1, imei2, color, ram, storage, condition, ptaStatus) => {
+  addImei: async (productId, imei1, imei2, color, ram, storage, condition, ptaStatus, costPrice, salePrice, wholesalePrice) => {
     const normalized1 = imei1.trim();
     const normalized2 = imei2.trim();
     if (!normalized1 || !normalized2) return null;
@@ -104,6 +107,9 @@ export const useImeiStore = create<ImeiState>((set, get) => ({
       storage: storage || null,
       condition: condition || null,
       pta_status: ptaStatus || null,
+      cost_price: condition !== 'new' && costPrice !== undefined ? costPrice : null,
+      sale_price: condition !== 'new' && salePrice !== undefined ? salePrice : null,
+      wholesale_price: condition !== 'new' && wholesalePrice !== undefined ? wholesalePrice : null,
     };
 
     const { data, error } = await supabase

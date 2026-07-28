@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useSaleStore } from '@/stores/saleStore';
 import { useProductStore } from '@/stores/productStore';
 import { useExpenseStore } from '@/stores/expenseStore';
+import { useImeiStore } from '@/stores/imeiStore';
 import PageHeader from '@/components/shared/PageHeader';
 import { formatCurrency, formatDate, downloadCSV } from '@/lib/utils';
 import { useToast } from '@/hooks/useToast';
@@ -23,7 +24,11 @@ export default function Reports() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  useEffect(() => { loadSales(); loadExpenses(); }, []);
+  useEffect(() => { 
+    loadSales(); 
+    loadExpenses(); 
+    useImeiStore.getState().loadData();
+  }, []);
 
   const filteredSales = useMemo(() => {
     let result = sales.filter(s => s.status !== 'cancelled');
@@ -68,7 +73,30 @@ export default function Reports() {
   const totalCost = filteredSales.reduce((s, sa) => s + sa.items.reduce((is, i) => {
     const p = products.find(prod => prod.id === i.productId);
     let itemCost = p?.costPrice || 0;
-    if (p?.description?.startsWith('{') && (i.ram || i.storage)) {
+    
+    // Check if this specific IMEI has a custom cost price
+    const itemImei = i.imei || i.imei1 || i.imei2;
+    if (itemImei) {
+      const imeiObj = useImeiStore.getState().imeis.find(im => 
+        im.imei?.toLowerCase() === itemImei.toLowerCase() || 
+        im.imei1?.toLowerCase() === itemImei.toLowerCase() || 
+        (im.imei2 && im.imei2.toLowerCase() === itemImei.toLowerCase())
+      );
+      if (imeiObj && typeof imeiObj.costPrice === 'number' && imeiObj.costPrice > 0) {
+        itemCost = imeiObj.costPrice;
+      } else if (p?.description?.startsWith('{') && (i.ram || i.storage)) {
+        try {
+          const parsed = JSON.parse(p.description);
+          const matchedVariant = (parsed.variants || []).find((v: any) => 
+            v.ram?.trim().toLowerCase() === (i.ram || '').trim().toLowerCase() && 
+            v.storage?.trim().toLowerCase() === (i.storage || '').trim().toLowerCase()
+          );
+          if (matchedVariant && typeof matchedVariant.costPrice === 'number') {
+            itemCost = matchedVariant.costPrice;
+          }
+        } catch (e) {}
+      }
+    } else if (p?.description?.startsWith('{') && (i.ram || i.storage)) {
       try {
         const parsed = JSON.parse(p.description);
         const matchedVariant = (parsed.variants || []).find((v: any) => 

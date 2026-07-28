@@ -485,19 +485,22 @@ export default function BuyBack() {
         throw new Error('Failed to restore IMEI status to available');
       }
 
-      // Update IMEI's ram/storage/condition in database if selected/changed
+      // Update IMEI's ram/storage/condition/pricing in database if selected/changed
       const { error: imeiUpdateErr } = await supabase
         .from('product_imeis')
         .update({ 
           ram: ramToUse || null, 
           storage: storageToUse || null,
           condition: condition || null,
+          cost_price: firstCost || null,
+          sale_price: firstSale || null,
+          wholesale_price: firstWholesale || null,
           updated_at: new Date().toISOString()
         })
         .eq('id', matchedImei.id);
         
       if (imeiUpdateErr) {
-        console.error('Failed to update IMEI RAM/Storage/Condition:', imeiUpdateErr);
+        console.error('Failed to update IMEI RAM/Storage/Condition/Pricing:', imeiUpdateErr);
       } else {
         // Update in-memory state of imeiStore
         useImeiStore.setState(state => ({
@@ -505,7 +508,10 @@ export default function BuyBack() {
             ...i, 
             ram: ramToUse, 
             storage: storageToUse,
-            condition: condition
+            condition: condition,
+            costPrice: firstCost,
+            salePrice: firstSale,
+            wholesalePrice: firstWholesale
           } : i)
         }));
       }

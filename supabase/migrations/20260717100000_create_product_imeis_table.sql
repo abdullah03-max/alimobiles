@@ -29,9 +29,11 @@ CREATE INDEX IF NOT EXISTS idx_product_imeis_status ON product_imeis(status);
 ALTER TABLE product_imeis ENABLE ROW LEVEL SECURITY;
 
 -- Allow all operations for authenticated users
+DROP POLICY IF EXISTS "Allow all for authenticated" ON product_imeis;
 CREATE POLICY "Allow all for authenticated" ON product_imeis
   FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- Allow all operations for anon users (since the app uses anon key)
+DROP POLICY IF EXISTS "Allow all for anon" ON product_imeis;
 CREATE POLICY "Allow all for anon" ON product_imeis
   FOR ALL TO anon USING (true) WITH CHECK (true);

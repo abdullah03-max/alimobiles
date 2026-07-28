@@ -106,6 +106,11 @@ export const useCartStore = create<CartState>((set, get) => ({
         } catch (e) {}
       }
 
+      // If IMEI has custom salePrice, use it
+      if (imeiRecord && typeof imeiRecord.salePrice === 'number' && imeiRecord.salePrice > 0) {
+        unitPrice = imeiRecord.salePrice;
+      }
+
       // derive brand name and model when possible
       const brand = useProductStore.getState().getBrandById(product.brandId);
       const category = useProductStore.getState().getCategoryById(product.categoryId);

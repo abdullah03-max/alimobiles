@@ -41,6 +41,9 @@ type ProductIMEI = {
   soldAt?: string;
   ram?: string;
   storage?: string;
+  costPrice?: number;
+  salePrice?: number;
+  wholesalePrice?: number;
 };
 
 // Category

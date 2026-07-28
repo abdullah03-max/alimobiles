@@ -25,6 +25,9 @@ export default function ProductImeis() {
   const [selectedVariantIdx, setSelectedVariantIdx] = useState('');
   const [selectedCondition, setSelectedCondition] = useState<'new' | 'used' | 'open_box' | 'refurbished'>('new');
   const [selectedPtaStatus, setSelectedPtaStatus] = useState<'approved' | 'non-approved'>('approved');
+  const [customCostPrice, setCustomCostPrice] = useState('');
+  const [customSalePrice, setCustomSalePrice] = useState('');
+  const [customWholesalePrice, setCustomWholesalePrice] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [expandedColors, setExpandedColors] = useState<Record<string, boolean>>({});
@@ -169,7 +172,10 @@ export default function ProductImeis() {
     }
 
     setLoading(true);
-    const added = await addImei(productId, first, second, selectedColor || undefined, ramToUse, storageToUse, selectedCondition, selectedPtaStatus);
+    const cost = selectedCondition !== 'new' && customCostPrice ? parseFloat(customCostPrice) : undefined;
+    const sale = selectedCondition !== 'new' && customSalePrice ? parseFloat(customSalePrice) : undefined;
+    const wholesale = selectedCondition !== 'new' && customWholesalePrice ? parseFloat(customWholesalePrice) : undefined;
+    const added = await addImei(productId, first, second, selectedColor || undefined, ramToUse, storageToUse, selectedCondition, selectedPtaStatus, cost, sale, wholesale);
     setLoading(false);
 
     if (!added) {
@@ -182,6 +188,9 @@ export default function ProductImeis() {
     setExpandedColors(prev => ({ ...prev, [selectedColor]: true }));
     setImeiInput1('');
     setImeiInput2('');
+    setCustomCostPrice('');
+    setCustomSalePrice('');
+    setCustomWholesalePrice('');
     setTimeout(() => {
       inputRef.current?.focus();
     }, 50);
@@ -345,7 +354,15 @@ export default function ProductImeis() {
                   <select
                     id="condition-select"
                     value={selectedCondition}
-                    onChange={(e) => setSelectedCondition(e.target.value as any)}
+                    onChange={(e) => {
+                      const val = e.target.value as any;
+                      setSelectedCondition(val);
+                      if (val === 'new') {
+                        setCustomCostPrice('');
+                        setCustomSalePrice('');
+                        setCustomWholesalePrice('');
+                      }
+                    }}
                     className="w-full mt-1.5 h-9 px-3 border border-gray-300 rounded-md text-sm bg-white focus:ring-1 focus:ring-orange-500 focus:border-orange-500"
                   >
                     <option value="new">New</option>
@@ -368,6 +385,44 @@ export default function ProductImeis() {
                   </select>
                 </div>
               </div>
+
+              {selectedCondition !== 'new' && (
+                <div className="grid grid-cols-3 gap-2 mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <div>
+                    <Label htmlFor="custom-cost" className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Cost Price</Label>
+                    <Input
+                      id="custom-cost"
+                      type="number"
+                      placeholder="Cost"
+                      value={customCostPrice}
+                      onChange={(e) => setCustomCostPrice(e.target.value)}
+                      className="h-8 text-xs mt-1 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="custom-sale" className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Sale Price</Label>
+                    <Input
+                      id="custom-sale"
+                      type="number"
+                      placeholder="Sale"
+                      value={customSalePrice}
+                      onChange={(e) => setCustomSalePrice(e.target.value)}
+                      className="h-8 text-xs mt-1 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="custom-wholesale" className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Wholesale</Label>
+                    <Input
+                      id="custom-wholesale"
+                      type="number"
+                      placeholder="Whole"
+                      value={customWholesalePrice}
+                      onChange={(e) => setCustomWholesalePrice(e.target.value)}
+                      className="h-8 text-xs mt-1 bg-white"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div>
                 <Label htmlFor="imei1-input" className="text-xs font-semibold">IMEI 1</Label>
@@ -512,6 +567,7 @@ export default function ProductImeis() {
                                     {imei.ram || imei.storage ? ` • ${imei.ram || ''}/${imei.storage || ''}` : ''}
                                     {imei.condition ? ` • ${imei.condition === 'open_box' ? 'Open Box' : imei.condition.toUpperCase()}` : ''}
                                     {imei.ptaStatus ? ` • PTA: ${imei.ptaStatus === 'approved' ? 'Approved' : 'Non PTA'}` : ''}
+                                    {imei.salePrice ? ` • Custom Price: ${formatCurrency(imei.salePrice)}` : ''}
                                   </p>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -548,6 +604,7 @@ export default function ProductImeis() {
                                     {imei.ram || imei.storage ? ` • ${imei.ram || ''}/${imei.storage || ''}` : ''}
                                     {imei.condition ? ` • ${imei.condition === 'open_box' ? 'Open Box' : imei.condition.toUpperCase()}` : ''}
                                     {imei.ptaStatus ? ` • PTA: ${imei.ptaStatus === 'approved' ? 'Approved' : 'Non PTA'}` : ''}
+                                    {imei.salePrice ? ` • Custom Price: ${formatCurrency(imei.salePrice)}` : ''}
                                   </p>
                                 </div>
                                 <span className="px-2 py-1 rounded-full bg-red-100 text-red-700 text-xs font-semibold">Sold</span>
