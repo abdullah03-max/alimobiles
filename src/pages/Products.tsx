@@ -633,6 +633,13 @@ export default function Products() {
                                     </span>
                                   )}
                                 </div>
+                                {record.condition !== 'new' && (record.costPrice || record.salePrice || record.wholesalePrice) ? (
+                                  <div className="text-[10px] text-gray-500 font-semibold mt-1 font-sans flex flex-wrap gap-x-2 gap-y-0.5">
+                                    {record.costPrice ? <span>Cost: <span className="font-bold text-gray-800">{formatCurrency(record.costPrice)}</span></span> : null}
+                                    {record.salePrice ? <span>Sale: <span className="font-bold text-blue-700">{formatCurrency(record.salePrice)}</span></span> : null}
+                                    {record.wholesalePrice ? <span>Whole: <span className="font-bold text-purple-700">{formatCurrency(record.wholesalePrice)}</span></span> : null}
+                                  </div>
+                                ) : null}
                               </div>
                               <span className={cn(
                                 "px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase",
