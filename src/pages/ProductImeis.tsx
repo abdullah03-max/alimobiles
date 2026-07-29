@@ -383,7 +383,7 @@ export default function ProductImeis() {
               </div>
 
               {selectedCondition !== 'new' && (
-                <div className="grid grid-cols-3 gap-2 mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="grid grid-cols-2 gap-3 mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
                   <div>
                     <Label htmlFor="custom-cost" className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Cost Price</Label>
                     <Input

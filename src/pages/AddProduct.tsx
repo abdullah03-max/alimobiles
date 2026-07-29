@@ -476,7 +476,7 @@ export default function AddProduct() {
             <div className="p-4 space-y-4">
               {variantsList.length === 0 ? (
                 <>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label>Cost Price *</Label>
                       <Input type="number" value={form.costPrice || ''} onChange={e => handleChange('costPrice', parseFloat(e.target.value) || 0)} className={cn('h-9 bg-white', errors.costPrice && 'border-red-500')} />
@@ -526,7 +526,7 @@ export default function AddProduct() {
                         </button>
                         {isExpanded && (
                           <div className="p-3 space-y-3">
-                            <div className="grid grid-cols-3 gap-3">
+                            <div className="grid grid-cols-2 gap-3">
                               <div>
                                 <Label>Cost Price *</Label>
                                 <Input
