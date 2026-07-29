@@ -14,7 +14,6 @@ type Product = {
   description?: string;
   costPrice: number;
   salePrice: number;
-  wholesalePrice?: number;
   stockQuantity: number;
   minStockLevel: number;
   unitId: string;
@@ -43,7 +42,6 @@ type ProductIMEI = {
   storage?: string;
   costPrice?: number;
   salePrice?: number;
-  wholesalePrice?: number;
 };
 
 // Category

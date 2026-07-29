@@ -21,7 +21,6 @@ export const productSchema = z.object({
   description: z.string().optional(),
   costPrice: z.coerce.number().min(0, 'Cost price cannot be negative'),
   salePrice: z.coerce.number().min(0, 'Sale price cannot be negative'),
-  wholesalePrice: z.coerce.number().min(0).optional(),
   stockQuantity: z.coerce.number().int().min(0, 'Stock cannot be negative'),
   minStockLevel: z.coerce.number().int().min(0).default(5),
   status: z.enum(['active', 'inactive']).default('active'),

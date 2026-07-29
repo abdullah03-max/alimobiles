@@ -27,7 +27,6 @@ export default function ProductImeis() {
   const [selectedPtaStatus, setSelectedPtaStatus] = useState<'approved' | 'non-approved'>('approved');
   const [customCostPrice, setCustomCostPrice] = useState('');
   const [customSalePrice, setCustomSalePrice] = useState('');
-  const [customWholesalePrice, setCustomWholesalePrice] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [expandedColors, setExpandedColors] = useState<Record<string, boolean>>({});
@@ -174,8 +173,7 @@ export default function ProductImeis() {
     setLoading(true);
     const cost = selectedCondition !== 'new' && customCostPrice ? parseFloat(customCostPrice) : undefined;
     const sale = selectedCondition !== 'new' && customSalePrice ? parseFloat(customSalePrice) : undefined;
-    const wholesale = selectedCondition !== 'new' && customWholesalePrice ? parseFloat(customWholesalePrice) : undefined;
-    const added = await addImei(productId, first, second, selectedColor || undefined, ramToUse, storageToUse, selectedCondition, selectedPtaStatus, cost, sale, wholesale);
+    const added = await addImei(productId, first, second, selectedColor || undefined, ramToUse, storageToUse, selectedCondition, selectedPtaStatus, cost, sale);
     setLoading(false);
 
     if (!added) {
@@ -190,7 +188,6 @@ export default function ProductImeis() {
     setImeiInput2('');
     setCustomCostPrice('');
     setCustomSalePrice('');
-    setCustomWholesalePrice('');
     setTimeout(() => {
       inputRef.current?.focus();
     }, 50);
@@ -360,7 +357,6 @@ export default function ProductImeis() {
                       if (val === 'new') {
                         setCustomCostPrice('');
                         setCustomSalePrice('');
-                        setCustomWholesalePrice('');
                       }
                     }}
                     className="w-full mt-1.5 h-9 px-3 border border-gray-300 rounded-md text-sm bg-white focus:ring-1 focus:ring-orange-500 focus:border-orange-500"
@@ -407,17 +403,6 @@ export default function ProductImeis() {
                       placeholder="Sale"
                       value={customSalePrice}
                       onChange={(e) => setCustomSalePrice(e.target.value)}
-                      className="h-8 text-xs mt-1 bg-white"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="custom-wholesale" className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Wholesale</Label>
-                    <Input
-                      id="custom-wholesale"
-                      type="number"
-                      placeholder="Whole"
-                      value={customWholesalePrice}
-                      onChange={(e) => setCustomWholesalePrice(e.target.value)}
                       className="h-8 text-xs mt-1 bg-white"
                     />
                   </div>

@@ -31,7 +31,6 @@ export default function AddProduct() {
     description: '',
     costPrice: 0,
     salePrice: 0,
-    wholesalePrice: 0,
     stockQuantity: 0,
     minStockLevel: 5,
     status: 'active',
@@ -44,12 +43,12 @@ export default function AddProduct() {
   const [customModel, setCustomModel] = useState('');
   
   // Predefined variants state
-  const [variantsList, setVariantsList] = useState<{ ram: string; storage: string; costPrice: number; salePrice: number; wholesalePrice: number }[]>([]);
+  const [variantsList, setVariantsList] = useState<{ ram: string; storage: string; costPrice: number; salePrice: number }[]>([]);
   const [selectedRam, setSelectedRam] = useState('');
   const [selectedStorage, setSelectedStorage] = useState('');
   const [expandedVariants, setExpandedVariants] = useState<Record<number, boolean>>({});
 
-  const handleVariantPriceChange = (index: number, key: 'costPrice' | 'salePrice' | 'wholesalePrice', value: number) => {
+  const handleVariantPriceChange = (index: number, key: 'costPrice' | 'salePrice', value: number) => {
     setVariantsList(prev => prev.map((v, i) => i === index ? { ...v, [key]: value } : v));
   };
 
@@ -76,7 +75,7 @@ export default function AddProduct() {
     // Parse description for colors, variants
     let descriptionText = product.description || '';
     let parsedColors: string[] = [];
-    let parsedVariants: { ram: string; storage: string; costPrice: number; salePrice: number; wholesalePrice: number }[] = [];
+    let parsedVariants: { ram: string; storage: string; costPrice: number; salePrice: number }[] = [];
     if (descriptionText.startsWith('{')) {
       try {
         const parsed = JSON.parse(descriptionText);
@@ -85,8 +84,7 @@ export default function AddProduct() {
           ram: v.ram || '',
           storage: v.storage || '',
           costPrice: typeof v.costPrice === 'number' ? v.costPrice : (product.costPrice || 0),
-          salePrice: typeof v.salePrice === 'number' ? v.salePrice : (product.salePrice || 0),
-          wholesalePrice: typeof v.wholesalePrice === 'number' ? v.wholesalePrice : (product.wholesalePrice || 0)
+          salePrice: typeof v.salePrice === 'number' ? v.salePrice : (product.salePrice || 0)
         }));
         descriptionText = parsed.text || '';
       } catch (e) {
@@ -106,7 +104,6 @@ export default function AddProduct() {
       description: descriptionText,
       costPrice: product.costPrice,
       salePrice: product.salePrice,
-      wholesalePrice: product.wholesalePrice || 0,
       stockQuantity: product.stockQuantity,
       minStockLevel: product.minStockLevel,
       status: product.status,
@@ -180,8 +177,7 @@ export default function AddProduct() {
           ram, 
           storage,
           costPrice: form.costPrice || 0,
-          salePrice: form.salePrice || 0,
-          wholesalePrice: form.wholesalePrice || 0
+          salePrice: form.salePrice || 0
         }]);
         setExpandedVariants(prev => ({ ...prev, [variantsList.length]: true }));
       } else {
@@ -240,8 +236,8 @@ export default function AddProduct() {
           toast.error('Invalid Price', `Sale Price for variant ${v.ram}/${v.storage} cannot be negative.`);
           return;
         }
-        if (v.wholesalePrice !== undefined && v.wholesalePrice < 0) {
-          toast.error('Invalid Price', `Wholesale Price for variant ${v.ram}/${v.storage} cannot be negative.`);
+        if (v.salePrice !== undefined && v.salePrice < 0) {
+          toast.error('Invalid Price', `Sale Price for variant ${v.ram}/${v.storage} cannot be negative.`);
           return;
         }
       }
@@ -256,7 +252,6 @@ export default function AddProduct() {
       ram: variantsList.length > 0 ? variantsList.map(v => v.ram).join(', ') : form.ram,
       costPrice: firstVariant ? firstVariant.costPrice : form.costPrice,
       salePrice: firstVariant ? firstVariant.salePrice : form.salePrice,
-      wholesalePrice: firstVariant ? firstVariant.wholesalePrice : form.wholesalePrice,
       stockQuantity: isEdit ? form.stockQuantity : 0, 
     };
 
@@ -492,10 +487,6 @@ export default function AddProduct() {
                       <Input type="number" value={form.salePrice || ''} onChange={e => handleChange('salePrice', parseFloat(e.target.value) || 0)} className={cn('h-9 bg-white', errors.salePrice && 'border-red-500')} />
                       {errors.salePrice && <p className="text-xs text-red-500 mt-1">{errors.salePrice}</p>}
                     </div>
-                    <div>
-                      <Label>Wholesale Price</Label>
-                      <Input type="number" value={form.wholesalePrice || ''} onChange={e => handleChange('wholesalePrice', parseFloat(e.target.value) || 0)} className="h-9 bg-white" />
-                    </div>
                   </div>
 
                   {/* Profit margin indicators */}
@@ -551,15 +542,6 @@ export default function AddProduct() {
                                   type="number"
                                   value={v.salePrice || ''}
                                   onChange={e => handleVariantPriceChange(idx, 'salePrice', parseFloat(e.target.value) || 0)}
-                                  className="h-9 bg-white"
-                                />
-                              </div>
-                              <div>
-                                <Label>Wholesale Price</Label>
-                                <Input
-                                  type="number"
-                                  value={v.wholesalePrice || ''}
-                                  onChange={e => handleVariantPriceChange(idx, 'wholesalePrice', parseFloat(e.target.value) || 0)}
                                   className="h-9 bg-white"
                                 />
                               </div>

@@ -42,7 +42,6 @@ export default function BuyBack() {
   // Buy back form state
   const [buyBackPrice, setBuyBackPrice] = useState<number>(0);
   const [newSalePrice, setNewSalePrice] = useState<number>(0);
-  const [newWholesalePrice, setNewWholesalePrice] = useState<number>(0);
   const [condition, setCondition] = useState<'used' | 'refurbished' | 'open_box'>('used');
   const [selectedVariantIdx, setSelectedVariantIdx] = useState<string>('');
   const [notes, setNotes] = useState('');
@@ -57,7 +56,6 @@ export default function BuyBack() {
   const [editingPurchase, setEditingPurchase] = useState<any>(null);
   const [editingBuyBackPrice, setEditingBuyBackPrice] = useState<number>(0);
   const [editingNewSalePrice, setEditingNewSalePrice] = useState<number>(0);
-  const [editingNewWholesalePrice, setEditingNewWholesalePrice] = useState<number>(0);
   const [editingCondition, setEditingCondition] = useState<'used' | 'refurbished' | 'open_box'>('used');
   const [editingNotes, setEditingNotes] = useState('');
 
@@ -83,7 +81,6 @@ export default function BuyBack() {
       const productObj = products.find(p => p.id === item.productId);
       if (productObj) {
         let sale = productObj.salePrice;
-        let wholesale = productObj.wholesalePrice || 0;
         if (productObj.description && productObj.description.startsWith('{')) {
           try {
             const parsed = JSON.parse(productObj.description);
@@ -93,12 +90,10 @@ export default function BuyBack() {
             );
             if (matchedVariant) {
               sale = matchedVariant.salePrice ?? sale;
-              wholesale = matchedVariant.wholesalePrice ?? wholesale;
             }
           } catch (e) {}
         }
         setEditingNewSalePrice(sale);
-        setEditingNewWholesalePrice(wholesale);
         setEditingCondition(productObj.condition === 'refurbished' ? 'refurbished' : productObj.condition === 'open_box' ? 'open_box' : 'used');
       }
     }
@@ -135,7 +130,6 @@ export default function BuyBack() {
       let updatedDescription = productObj.description;
       let firstCost = editingBuyBackPrice;
       let firstSale = editingNewSalePrice;
-      let firstWholesale = editingNewWholesalePrice;
 
       if (productObj.description && productObj.description.startsWith('{')) {
         try {
@@ -150,8 +144,7 @@ export default function BuyBack() {
             variants[matchedIdx] = {
               ...variants[matchedIdx],
               costPrice: editingBuyBackPrice,
-              salePrice: editingNewSalePrice,
-              wholesalePrice: editingNewWholesalePrice
+              salePrice: editingNewSalePrice
             };
             parsed.variants = variants;
             updatedDescription = JSON.stringify(parsed);
@@ -159,7 +152,6 @@ export default function BuyBack() {
           if (variants.length > 0) {
             firstCost = variants[0].costPrice ?? firstCost;
             firstSale = variants[0].salePrice ?? firstSale;
-            firstWholesale = variants[0].wholesalePrice ?? firstWholesale;
           }
         } catch (err) {}
       }
@@ -168,7 +160,6 @@ export default function BuyBack() {
       await updateProduct(productObj.id, {
         costPrice: firstCost,
         salePrice: firstSale,
-        wholesalePrice: firstWholesale,
         condition: editingCondition,
         description: updatedDescription
       });
@@ -258,7 +249,6 @@ export default function BuyBack() {
     if (idxStr === '') {
       setBuyBackPrice(product.costPrice);
       setNewSalePrice(product.salePrice);
-      setNewWholesalePrice(product.wholesalePrice || 0);
       return;
     }
 
@@ -271,7 +261,6 @@ export default function BuyBack() {
         if (variantObj) {
           setBuyBackPrice(variantObj.costPrice ?? product.costPrice);
           setNewSalePrice(variantObj.salePrice ?? product.salePrice);
-          setNewWholesalePrice(variantObj.wholesalePrice ?? (product.wholesalePrice || 0));
         }
       } catch (e) {}
     }
@@ -310,7 +299,6 @@ export default function BuyBack() {
       // Check if variant price exists
       let cost = prod.costPrice;
       let sale = prod.salePrice;
-      let wholesale = prod.wholesalePrice || 0;
       let variantIndex = '';
 
       if (prod.description && prod.description.startsWith('{')) {
@@ -326,14 +314,12 @@ export default function BuyBack() {
             const matchedVariant = variants[matchedIdx];
             cost = matchedVariant.costPrice ?? cost;
             sale = matchedVariant.salePrice ?? sale;
-            wholesale = matchedVariant.wholesalePrice ?? wholesale;
           }
         } catch (err) {}
       }
 
       setBuyBackPrice(cost);
       setNewSalePrice(sale);
-      setNewWholesalePrice(wholesale);
       setCondition(prod.condition === 'refurbished' ? 'refurbished' : prod.condition === 'open_box' ? 'open_box' : 'used');
       setSelectedVariantIdx(variantIndex);
     }
@@ -445,7 +431,7 @@ export default function BuyBack() {
     e.preventDefault();
     if (!matchedImei || !product) return;
 
-    if (buyBackPrice < 0 || newSalePrice < 0 || newWholesalePrice < 0) {
+    if (buyBackPrice < 0 || newSalePrice < 0) {
       toast.error('Invalid price parameters', 'Prices must be non-negative.');
       return;
     }
@@ -476,8 +462,7 @@ export default function BuyBack() {
             variants[idx] = {
               ...variants[idx],
               costPrice: buyBackPrice,
-              salePrice: newSalePrice,
-              wholesalePrice: newWholesalePrice
+              salePrice: newSalePrice
             };
             parsed.variants = variants;
             updatedDescription = JSON.stringify(parsed);
@@ -488,7 +473,6 @@ export default function BuyBack() {
       // Calculate first variant fallback prices
       let firstCost = buyBackPrice;
       let firstSale = newSalePrice;
-      let firstWholesale = newWholesalePrice;
 
       if (updatedDescription && updatedDescription.startsWith('{')) {
         try {
@@ -497,7 +481,6 @@ export default function BuyBack() {
           if (variants.length > 0) {
             firstCost = variants[0].costPrice ?? firstCost;
             firstSale = variants[0].salePrice ?? firstSale;
-            firstWholesale = variants[0].wholesalePrice ?? firstWholesale;
           }
         } catch (err) {}
       }
@@ -531,7 +514,6 @@ export default function BuyBack() {
           condition: condition || null,
           cost_price: firstCost || null,
           sale_price: firstSale || null,
-          wholesale_price: firstWholesale || null,
           updated_at: new Date().toISOString()
         })
         .eq('id', matchedImei.id);
@@ -547,8 +529,7 @@ export default function BuyBack() {
             storage: storageToUse,
             condition: condition,
             costPrice: firstCost,
-            salePrice: firstSale,
-            wholesalePrice: firstWholesale
+            salePrice: firstSale
           } : i)
         }));
       }
@@ -559,7 +540,6 @@ export default function BuyBack() {
       await updateProduct(product.id, {
         costPrice: firstCost,
         salePrice: firstSale,
-        wholesalePrice: firstWholesale,
         description: updatedDescription
       });
 
@@ -809,22 +789,7 @@ export default function BuyBack() {
                     </div>
                   </div>
 
-                  <div>
-                    <Label htmlFor="new-wholesale" className="text-xs font-semibold">New Wholesale Price</Label>
-                    <div className="relative mt-1">
-                      <DollarSign className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-                      <Input 
-                        id="new-wholesale"
-                        type="number"
-                        min="0"
-                        placeholder="0"
-                        value={newWholesalePrice || ''}
-                        onChange={(e) => setNewWholesalePrice(parseFloat(e.target.value) || 0)}
-                        className="pl-8 h-9"
-                        disabled={matchedImei?.status === 'available'}
-                      />
-                    </div>
-                  </div>
+
 
                   <div>
                     <Label htmlFor="condition-select" className="text-xs font-semibold">Updated Condition *</Label>
@@ -1203,21 +1168,7 @@ export default function BuyBack() {
                 </div>
               </div>
 
-              <div>
-                <Label htmlFor="edit-new-wholesale" className="text-xs font-semibold">New Wholesale Price</Label>
-                <div className="relative mt-1">
-                  <DollarSign className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-                  <Input 
-                    id="edit-new-wholesale"
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    value={editingNewWholesalePrice || ''}
-                    onChange={(e) => setEditingNewWholesalePrice(parseFloat(e.target.value) || 0)}
-                    className="pl-8 h-9"
-                  />
-                </div>
-              </div>
+
 
               <div>
                 <Label htmlFor="edit-condition-select" className="text-xs font-semibold">Condition *</Label>

@@ -430,7 +430,7 @@ export default function Products() {
                     <h4 className="font-semibold text-gray-850 text-xs uppercase tracking-wider">Pricing details</h4>
                     {parsedVariants.length === 0 ? (
                       <>
-                        <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div className="grid grid-cols-2 gap-2 text-xs">
                           <div>
                             <span className="text-gray-400">Cost Price</span>
                             <p className="font-semibold text-gray-700">{formatCurrency(detailProduct.costPrice)}</p>
@@ -438,10 +438,6 @@ export default function Products() {
                           <div>
                             <span className="text-gray-400">Sale Price</span>
                             <p className="font-semibold text-gray-700">{formatCurrency(detailProduct.salePrice)}</p>
-                          </div>
-                          <div>
-                            <span className="text-gray-400">Wholesale Price</span>
-                            <p className="font-semibold text-gray-700">{detailProduct.wholesalePrice ? formatCurrency(detailProduct.wholesalePrice) : '—'}</p>
                           </div>
                         </div>
                         <div className="bg-green-50 border border-green-100 rounded-md p-2 text-xs text-green-700 flex justify-between">
@@ -454,23 +450,18 @@ export default function Products() {
                         {parsedVariants.map((v, vIdx) => {
                           const vCost = v.costPrice ?? detailProduct.costPrice ?? 0;
                           const vSale = v.salePrice ?? detailProduct.salePrice ?? 0;
-                          const vWholesale = v.wholesalePrice ?? detailProduct.wholesalePrice ?? 0;
                           const vProfit = calculateProfit(vCost, vSale);
                           return (
                             <div key={vIdx} className="border-t first:border-t-0 pt-2 first:pt-0 space-y-1">
                               <span className="font-semibold text-gray-855 text-xs">Variant: {v.ram} / {v.storage}</span>
-                              <div className="grid grid-cols-3 gap-2 text-xs pt-1">
+                              <div className="grid grid-cols-2 gap-2 text-xs pt-1">
                                 <div>
                                   <span className="text-gray-400">Cost Price</span>
-                                  <p className="font-semibold text-gray-750">{formatCurrency(vCost)}</p>
+                                  <p className="font-semibold text-gray-755">{formatCurrency(vCost)}</p>
                                 </div>
                                 <div>
                                   <span className="text-gray-400">Sale Price</span>
                                   <p className="font-semibold text-gray-755">{formatCurrency(vSale)}</p>
-                                </div>
-                                <div>
-                                  <span className="text-gray-400">Wholesale Price</span>
-                                  <p className="font-semibold text-gray-755">{vWholesale ? formatCurrency(vWholesale) : '—'}</p>
                                 </div>
                               </div>
                               <div className="bg-green-50 border border-green-100 rounded p-1.5 text-xs text-green-700 flex justify-between">
@@ -633,11 +624,10 @@ export default function Products() {
                                     </span>
                                   )}
                                 </div>
-                                {record.condition !== 'new' && (record.costPrice || record.salePrice || record.wholesalePrice) ? (
+                                {record.condition !== 'new' && (record.costPrice || record.salePrice) ? (
                                   <div className="text-[10px] text-gray-500 font-semibold mt-1 font-sans flex flex-wrap gap-x-2 gap-y-0.5">
                                     {record.costPrice ? <span>Cost: <span className="font-bold text-gray-800">{formatCurrency(record.costPrice)}</span></span> : null}
                                     {record.salePrice ? <span>Sale: <span className="font-bold text-blue-700">{formatCurrency(record.salePrice)}</span></span> : null}
-                                    {record.wholesalePrice ? <span>Whole: <span className="font-bold text-purple-700">{formatCurrency(record.wholesalePrice)}</span></span> : null}
                                   </div>
                                 ) : null}
                               </div>
