@@ -31,7 +31,7 @@ export default function Reports() {
   const [filterBrand, setFilterBrand] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterCondition, setFilterCondition] = useState('');
-  const [sortBy, setSortBy] = useState('highest_profit');
+  const [sortBy, setSortBy] = useState('invoice_desc');
 
   useEffect(() => { 
     loadSales(); 
@@ -107,7 +107,19 @@ export default function Reports() {
         const catName = p ? categories.find(c => c.id === p.categoryId)?.name || 'Unknown' : 'Unknown';
         
         const imeiValue = item.imei || [item.imei1, item.imei2].filter(Boolean).join(', ') || 'N/A';
-        const cond = item.condition || p?.condition || 'new';
+        
+        // Resolve condition dynamically from IMEI store or base product
+        let cond = p?.condition || 'new';
+        if (imeiValue && imeiValue !== 'N/A') {
+          const imeiRecord = useImeiStore.getState().imeis.find(im => 
+            im.imei?.toLowerCase() === imeiValue.toLowerCase() || 
+            im.imei1?.toLowerCase() === imeiValue.toLowerCase() || 
+            (im.imei2 && im.imei2.toLowerCase() === imeiValue.toLowerCase())
+          );
+          if (imeiRecord?.condition) {
+            cond = imeiRecord.condition;
+          }
+        }
         
         list.push({
           id: `${sale.id}-${item.productId}-${imeiValue}`,
@@ -158,7 +170,9 @@ export default function Reports() {
     }
     
     // Apply sorting
-    if (sortBy === 'highest_profit') {
+    if (sortBy === 'invoice_desc') {
+      result.sort((a, b) => b.invoiceNumber.localeCompare(a.invoiceNumber, undefined, { numeric: true, sensitivity: 'base' }));
+    } else if (sortBy === 'highest_profit') {
       result.sort((a, b) => b.profit - a.profit);
     } else if (sortBy === 'highest_loss') {
       result.sort((a, b) => a.profit - b.profit);
@@ -678,6 +692,7 @@ export default function Reports() {
               <div>
                 <label className="text-[10px] font-semibold text-gray-500 block mb-1">Sort By</label>
                 <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="w-full h-8 px-2 border rounded-md text-xs bg-white focus:ring-1 focus:ring-orange-500 focus:outline-none">
+                  <option value="invoice_desc">Invoice (Newest First)</option>
                   <option value="highest_profit">Highest Profit</option>
                   <option value="highest_loss">Highest Loss</option>
                   <option value="highest_sale">Highest Sale Price</option>

@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { generateInvoiceNumber } from '@/lib/utils';
 import { useImeiStore } from '@/stores/imeiStore';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { useProductStore } from '@/stores/productStore';
 
 interface SaleState {
   sales: Sale[];
@@ -211,7 +212,7 @@ export const useSaleStore = create<SaleState>((set, get) => ({
         let costPrice = item.costPrice;
         if (costPrice === undefined || costPrice === 0) {
           costPrice = 0;
-          const prod = useProductStore.getState().products.find(p => p.id === item.productId);
+          const prod = useProductStore.getState().products.find((p: any) => p.id === item.productId);
           if (prod) {
             costPrice = prod.costPrice || 0;
             if (prod.description?.startsWith('{')) {
@@ -291,7 +292,7 @@ export const useSaleStore = create<SaleState>((set, get) => ({
             let costPrice = item.costPrice;
             if (costPrice === undefined || costPrice === 0) {
               costPrice = 0;
-              const prod = useProductStore.getState().products.find(p => p.id === item.productId);
+              const prod = useProductStore.getState().products.find((p: any) => p.id === item.productId);
               if (prod) {
                 costPrice = prod.costPrice || 0;
                 if (prod.description?.startsWith('{')) {
