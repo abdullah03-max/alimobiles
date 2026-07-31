@@ -46,6 +46,8 @@ export default function AddProduct() {
   const [variantsList, setVariantsList] = useState<{ ram: string; storage: string; costPrice: number; salePrice: number }[]>([]);
   const [selectedRam, setSelectedRam] = useState('');
   const [selectedStorage, setSelectedStorage] = useState('');
+  const [customRam, setCustomRam] = useState('');
+  const [customStorage, setCustomStorage] = useState('');
   const [expandedVariants, setExpandedVariants] = useState<Record<number, boolean>>({});
 
   const handleVariantPriceChange = (index: number, key: 'costPrice' | 'salePrice', value: number) => {
@@ -168,8 +170,8 @@ export default function AddProduct() {
 
   const handleAddVariant = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const ram = selectedRam.trim();
-    const storage = selectedStorage.trim();
+    const ram = selectedRam === 'custom' ? customRam.trim() : selectedRam.trim();
+    const storage = selectedStorage === 'custom' ? customStorage.trim() : selectedStorage.trim();
     if (ram && storage) {
       const exists = variantsList.some(v => v.ram.toLowerCase() === ram.toLowerCase() && v.storage.toLowerCase() === storage.toLowerCase());
       if (!exists) {
@@ -180,6 +182,8 @@ export default function AddProduct() {
           salePrice: form.salePrice || 0
         }]);
         setExpandedVariants(prev => ({ ...prev, [variantsList.length]: true }));
+        if (selectedRam === 'custom') setCustomRam('');
+        if (selectedStorage === 'custom') setCustomStorage('');
       } else {
         toast.warning('Duplicate variant', 'This RAM / Storage combination already exists.');
       }
@@ -420,15 +424,33 @@ export default function AddProduct() {
                   <Label className="text-[10px] text-gray-500 uppercase">RAM</Label>
                   <select value={selectedRam} onChange={e => setSelectedRam(e.target.value)} className="w-full h-9 px-3 border rounded-md text-sm bg-white mt-1">
                     <option value="">— None (Button Mobile) —</option>
-                    {['2GB', '4GB', '6GB', '8GB', '12GB', '16GB', '24GB'].map(r => <option key={r} value={r}>{r}</option>)}
+                    {['2GB', '3GB', '4GB', '6GB', '8GB', '12GB', '16GB', '24GB'].map(r => <option key={r} value={r}>{r}</option>)}
+                    <option value="custom">Custom...</option>
                   </select>
+                  {selectedRam === 'custom' && (
+                    <Input
+                      placeholder="e.g., 5GB"
+                      value={customRam}
+                      onChange={e => setCustomRam(e.target.value)}
+                      className="h-9 bg-white mt-1.5"
+                    />
+                  )}
                 </div>
                 <div className="flex-1">
                   <Label className="text-[10px] text-gray-500 uppercase">Storage</Label>
                   <select value={selectedStorage} onChange={e => setSelectedStorage(e.target.value)} className="w-full h-9 px-3 border rounded-md text-sm bg-white mt-1">
                     <option value="">— None (Button Mobile) —</option>
                     {['32GB', '64GB', '128GB', '256GB', '512GB', '1TB'].map(s => <option key={s} value={s}>{s}</option>)}
+                    <option value="custom">Custom...</option>
                   </select>
+                  {selectedStorage === 'custom' && (
+                    <Input
+                      placeholder="e.g., 128GB"
+                      value={customStorage}
+                      onChange={e => setCustomStorage(e.target.value)}
+                      className="h-9 bg-white mt-1.5"
+                    />
+                  )}
                 </div>
                 <div className="flex items-end">
                   <Button type="button" size="sm" onClick={() => handleAddVariant()} className="h-9 bg-orange-500 hover:bg-orange-600">
