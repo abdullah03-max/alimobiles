@@ -111,6 +111,26 @@ export const useCartStore = create<CartState>((set, get) => ({
         unitPrice = imeiRecord.salePrice;
       }
 
+      // Resolve variant cost price if available
+      let costPrice = product.costPrice;
+      if (product?.description?.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(product.description);
+          const matchedVariant = (parsed.variants || []).find((v: any) => 
+            v.ram?.trim().toLowerCase() === ram.trim().toLowerCase() && 
+            v.storage?.trim().toLowerCase() === storage.trim().toLowerCase()
+          );
+          if (matchedVariant && typeof matchedVariant.costPrice === 'number') {
+            costPrice = matchedVariant.costPrice;
+          }
+        } catch (e) {}
+      }
+
+      // If IMEI has custom costPrice, use it
+      if (imeiRecord && typeof imeiRecord.costPrice === 'number' && imeiRecord.costPrice > 0) {
+        costPrice = imeiRecord.costPrice;
+      }
+
       // derive brand name and model when possible
       const brand = useProductStore.getState().getBrandById(product.brandId);
       const category = useProductStore.getState().getCategoryById(product.categoryId);
@@ -141,6 +161,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         condition,
         discount: 0,
         discountType: 'amount',
+        costPrice,
       };
       set({ items: [...items, newItem] });
       return true;
@@ -186,6 +207,21 @@ export const useCartStore = create<CartState>((set, get) => ({
         } catch (e) {}
       }
 
+      // Resolve variant cost price if available
+      let costPrice = product.costPrice;
+      if (product?.description?.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(product.description);
+          const matchedVariant = (parsed.variants || []).find((v: any) => 
+            v.ram?.trim().toLowerCase() === ram.trim().toLowerCase() && 
+            v.storage?.trim().toLowerCase() === storage.trim().toLowerCase()
+          );
+          if (matchedVariant && typeof matchedVariant.costPrice === 'number') {
+            costPrice = matchedVariant.costPrice;
+          }
+        } catch (e) {}
+      }
+
       const newItem: CartItem = {
         productId: product.id,
         productName: product.name,
@@ -202,6 +238,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         condition: product.condition || 'new',
         discount: 0,
         discountType: 'amount',
+        costPrice,
       };
       set({ items: [...items, newItem] });
       return true;

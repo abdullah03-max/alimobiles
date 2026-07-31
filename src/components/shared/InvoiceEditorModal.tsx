@@ -90,6 +90,38 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
       if (delErr) throw delErr;
 
       const itemsToInsert = editedSale.items.map(item => {
+        let costPrice = item.costPrice;
+        if (costPrice === undefined || costPrice === 0) {
+          costPrice = 0;
+          const prod = useProductStore.getState().products.find(p => p.id === item.productId);
+          if (prod) {
+            costPrice = prod.costPrice || 0;
+            if (prod.description?.startsWith('{')) {
+              try {
+                const parsed = JSON.parse(prod.description);
+                const matchedVariant = (parsed.variants || []).find((v: any) => 
+                  v.ram?.trim().toLowerCase() === (item.ram || '').trim().toLowerCase() && 
+                  v.storage?.trim().toLowerCase() === (item.storage || '').trim().toLowerCase()
+                );
+                if (matchedVariant && typeof matchedVariant.costPrice === 'number') {
+                  costPrice = matchedVariant.costPrice;
+                }
+              } catch (e) {}
+            }
+          }
+          const imeiVal = item.imei1 || item.imei || item.imei2;
+          if (imeiVal) {
+            const imeiRecord = useImeiStore.getState().imeis.find(im => 
+              im.imei?.toLowerCase() === imeiVal.toLowerCase() || 
+              im.imei1?.toLowerCase() === imeiVal.toLowerCase() || 
+              (im.imei2 && im.imei2.toLowerCase() === imeiVal.toLowerCase())
+            );
+            if (imeiRecord && typeof imeiRecord.costPrice === 'number' && imeiRecord.costPrice > 0) {
+              costPrice = imeiRecord.costPrice;
+            }
+          }
+        }
+
         const payload: any = {
           sale_id: editedSale.id,
           product_id: item.productId,
@@ -103,6 +135,7 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
           pta_status: item.ptaStatus || null,
           discount: item.discount || 0,
           discount_type: item.discountType || 'amount',
+          cost_price: costPrice,
         };
         if (item.imei1) payload.imei1 = item.imei1;
         if (item.imei2) payload.imei2 = item.imei2;
@@ -121,6 +154,38 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
             else if (item.imei1) imeiValue = item.imei1;
             else if (item.imei2) imeiValue = item.imei2;
             else if (item.imei) imeiValue = item.imei;
+
+            let costPrice = item.costPrice;
+            if (costPrice === undefined || costPrice === 0) {
+              costPrice = 0;
+              const prod = useProductStore.getState().products.find(p => p.id === item.productId);
+              if (prod) {
+                costPrice = prod.costPrice || 0;
+                if (prod.description?.startsWith('{')) {
+                  try {
+                    const parsed = JSON.parse(prod.description);
+                    const matchedVariant = (parsed.variants || []).find((v: any) => 
+                      v.ram?.trim().toLowerCase() === (item.ram || '').trim().toLowerCase() && 
+                      v.storage?.trim().toLowerCase() === (item.storage || '').trim().toLowerCase()
+                    );
+                    if (matchedVariant && typeof matchedVariant.costPrice === 'number') {
+                      costPrice = matchedVariant.costPrice;
+                    }
+                  } catch (e) {}
+                }
+              }
+              if (imeiValue) {
+                const imeiRecord = useImeiStore.getState().imeis.find(im => 
+                  im.imei?.toLowerCase() === imeiValue.toLowerCase() || 
+                  im.imei1?.toLowerCase() === imeiValue.toLowerCase() || 
+                  (im.imei2 && im.imei2.toLowerCase() === imeiValue.toLowerCase())
+                );
+                if (imeiRecord && typeof imeiRecord.costPrice === 'number' && imeiRecord.costPrice > 0) {
+                  costPrice = imeiRecord.costPrice;
+                }
+              }
+            }
+
             return {
               sale_id: editedSale.id,
               product_id: item.productId,
@@ -135,6 +200,7 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
               pta_status: item.ptaStatus || null,
               discount: item.discount || 0,
               discount_type: item.discountType || 'amount',
+              cost_price: costPrice,
             };
           });
           const fallbackRes = await supabase.from('sale_items').insert(fallback);
@@ -179,6 +245,38 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
       if (delErr) throw delErr;
 
       const itemsToInsert = editedSale.items.map(item => {
+        let costPrice = item.costPrice;
+        if (costPrice === undefined || costPrice === 0) {
+          costPrice = 0;
+          const prod = useProductStore.getState().products.find(p => p.id === item.productId);
+          if (prod) {
+            costPrice = prod.costPrice || 0;
+            if (prod.description?.startsWith('{')) {
+              try {
+                const parsed = JSON.parse(prod.description);
+                const matchedVariant = (parsed.variants || []).find((v: any) => 
+                  v.ram?.trim().toLowerCase() === (item.ram || '').trim().toLowerCase() && 
+                  v.storage?.trim().toLowerCase() === (item.storage || '').trim().toLowerCase()
+                );
+                if (matchedVariant && typeof matchedVariant.costPrice === 'number') {
+                  costPrice = matchedVariant.costPrice;
+                }
+              } catch (e) {}
+            }
+          }
+          const imeiVal = item.imei1 || item.imei || item.imei2;
+          if (imeiVal) {
+            const imeiRecord = useImeiStore.getState().imeis.find(im => 
+              im.imei?.toLowerCase() === imeiVal.toLowerCase() || 
+              im.imei1?.toLowerCase() === imeiVal.toLowerCase() || 
+              (im.imei2 && im.imei2.toLowerCase() === imeiVal.toLowerCase())
+            );
+            if (imeiRecord && typeof imeiRecord.costPrice === 'number' && imeiRecord.costPrice > 0) {
+              costPrice = imeiRecord.costPrice;
+            }
+          }
+        }
+
         const payload: any = {
           sale_id: editedSale.id,
           product_id: item.productId,
@@ -192,6 +290,7 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
           pta_status: item.ptaStatus || null,
           discount: item.discount || 0,
           discount_type: item.discountType || 'amount',
+          cost_price: costPrice,
         };
         if (item.imei1) payload.imei1 = item.imei1;
         if (item.imei2) payload.imei2 = item.imei2;
@@ -210,6 +309,38 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
             else if (item.imei1) imeiValue = item.imei1;
             else if (item.imei2) imeiValue = item.imei2;
             else if (item.imei) imeiValue = item.imei;
+
+            let costPrice = item.costPrice;
+            if (costPrice === undefined || costPrice === 0) {
+              costPrice = 0;
+              const prod = useProductStore.getState().products.find(p => p.id === item.productId);
+              if (prod) {
+                costPrice = prod.costPrice || 0;
+                if (prod.description?.startsWith('{')) {
+                  try {
+                    const parsed = JSON.parse(prod.description);
+                    const matchedVariant = (parsed.variants || []).find((v: any) => 
+                      v.ram?.trim().toLowerCase() === (item.ram || '').trim().toLowerCase() && 
+                      v.storage?.trim().toLowerCase() === (item.storage || '').trim().toLowerCase()
+                    );
+                    if (matchedVariant && typeof matchedVariant.costPrice === 'number') {
+                      costPrice = matchedVariant.costPrice;
+                    }
+                  } catch (e) {}
+                }
+              }
+              if (imeiValue) {
+                const imeiRecord = useImeiStore.getState().imeis.find(im => 
+                  im.imei?.toLowerCase() === imeiValue.toLowerCase() || 
+                  im.imei1?.toLowerCase() === imeiValue.toLowerCase() || 
+                  (im.imei2 && im.imei2.toLowerCase() === imeiValue.toLowerCase())
+                );
+                if (imeiRecord && typeof imeiRecord.costPrice === 'number' && imeiRecord.costPrice > 0) {
+                  costPrice = imeiRecord.costPrice;
+                }
+              }
+            }
+
             return {
               sale_id: editedSale.id,
               product_id: item.productId,
@@ -224,6 +355,7 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
               pta_status: item.ptaStatus || null,
               discount: item.discount || 0,
               discount_type: item.discountType || 'amount',
+              cost_price: costPrice,
             };
           });
           const fallbackRes = await supabase.from('sale_items').insert(fallback);

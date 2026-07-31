@@ -124,6 +124,7 @@ type SaleItem = {
   ptaStatus?: string;
   discount?: number;
   discountType?: 'percent' | 'amount';
+  costPrice?: number;
 };
 
 // Sale
@@ -329,6 +330,7 @@ type CartItem = {
   maxStock: number;
   discount?: number;
   discountType?: 'percent' | 'amount';
+  costPrice?: number;
 };
 
 // Toast
