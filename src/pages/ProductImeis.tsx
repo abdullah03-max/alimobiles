@@ -56,7 +56,9 @@ export default function ProductImeis() {
     let sum = 0;
     availableImeis.forEach(imei => {
       let salePrice = product.salePrice;
-      if (product.description && product.description.startsWith('{')) {
+      if (typeof imei.salePrice === 'number' && imei.salePrice > 0) {
+        salePrice = imei.salePrice;
+      } else if (product.description && product.description.startsWith('{')) {
         try {
           const parsed = JSON.parse(product.description);
           const matchedVariant = (parsed.variants || []).find((v: any) => 

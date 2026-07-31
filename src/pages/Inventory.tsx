@@ -167,7 +167,9 @@ export default function Inventory() {
       if (p.availableImeis && p.availableImeis.length > 0) {
         p.availableImeis.forEach((imei: any) => {
           let imeiCost = p.costPrice;
-          if (p.description && p.description.startsWith('{')) {
+          if (typeof imei.costPrice === 'number' && imei.costPrice > 0) {
+            imeiCost = imei.costPrice;
+          } else if (p.description && p.description.startsWith('{')) {
             try {
               const parsed = JSON.parse(p.description);
               const matchedVariant = (parsed.variants || []).find((v: any) => 
