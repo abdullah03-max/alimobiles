@@ -153,6 +153,18 @@ export default function InvoiceEditorModal({ open, onClose, sale, shopSettings, 
             let imeiValue = null;
             if (item.imei1 && item.imei2) imeiValue = `${item.imei1}||${item.imei2}`;
             else if (item.imei1) imeiValue = item.imei1;
+            else if (item.imei2) imeiValue = item.imei2;
+            else if (item.imei) imeiValue = item.imei;
+
+            let costPrice = item.costPrice;
+            if (costPrice === undefined || costPrice === 0) {
+              costPrice = 0;
+              const prod = useProductStore.getState().products.find((p: any) => p.id === item.productId);
+              if (prod) {
+                costPrice = prod.costPrice || 0;
+                if (prod.description?.startsWith('{')) {
+                  try {
+                    const parsed = JSON.parse(prod.description);
                     const matchedVariant = (parsed.variants || []).find((v: any) => 
                       v.ram?.trim().toLowerCase() === (item.ram || '').trim().toLowerCase() && 
                       v.storage?.trim().toLowerCase() === (item.storage || '').trim().toLowerCase()
