@@ -43,6 +43,8 @@ interface ImeiState {
   deleteImeisByProduct: (productId: string) => Promise<ProductIMEI[]>;
   clearAllImeis: () => Promise<void>;
   restoreImeis: (imeis: ProductIMEI[]) => Promise<void>;
+  updateImeiPricing: (id: string, costPrice: number, salePrice: number) => Promise<boolean>;
+  updateBulkImeiPricing: (productId: string, condition: string, costPrice: number, salePrice: number) => Promise<boolean>;
 }
 
 export const useImeiStore = create<ImeiState>((set, get) => ({
@@ -325,5 +327,75 @@ export const useImeiStore = create<ImeiState>((set, get) => ({
 
     // Re-fetch from Supabase to get generated IDs
     await get().loadData();
+  },
+
+  // ──────────────────────── Update individual IMEI pricing ────────────────────────
+  updateImeiPricing: async (id, costPrice, salePrice) => {
+    const existing = get().imeis.find(i => i.id === id);
+    if (!existing) return false;
+    if (existing.status !== 'available') return false;
+
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from(TABLE)
+      .update({
+        cost_price: costPrice,
+        sale_price: salePrice,
+        updated_at: now
+      })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Failed to update IMEI pricing in Supabase:', error);
+      return false;
+    }
+
+    set({
+      imeis: get().imeis.map(i =>
+        i.id === id
+          ? {
+              ...i,
+              costPrice,
+              salePrice,
+              updatedAt: now
+            }
+          : i
+      )
+    });
+    return true;
+  },
+
+  // ──────────────────────── Update bulk IMEI pricing by condition ────────────────────────
+  updateBulkImeiPricing: async (productId, condition, costPrice, salePrice) => {
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from(TABLE)
+      .update({
+        cost_price: costPrice,
+        sale_price: salePrice,
+        updated_at: now
+      })
+      .eq('product_id', productId)
+      .eq('condition', condition)
+      .eq('status', 'available');
+
+    if (error) {
+      console.error('Failed to bulk update IMEI pricing in Supabase:', error);
+      return false;
+    }
+
+    set({
+      imeis: get().imeis.map(i =>
+        i.productId === productId && i.condition === condition && i.status === 'available'
+          ? {
+              ...i,
+              costPrice,
+              salePrice,
+              updatedAt: now
+            }
+          : i
+      )
+    });
+    return true;
   },
 }));

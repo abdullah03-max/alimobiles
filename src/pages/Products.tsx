@@ -10,6 +10,7 @@ import DeleteConfirmModal from '@/components/shared/DeleteConfirmModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { formatCurrency, getStockStatus, downloadCSV, calculateProfit } from '@/lib/utils';
 import {
   Plus, Search, Pencil, Trash2, Download, Package, CheckCircle2, AlertTriangle, XCircle, Smartphone, Eye,
@@ -19,7 +20,7 @@ import { cn } from '@/lib/utils';
 export default function Products() {
   const navigate = useNavigate();
   const { products, categories, brands, loadData, deleteProduct } = useProductStore();
-  const { loadData: loadImeis, getImeisByProduct } = useImeiStore();
+  const { imeis, loadData: loadImeis, getImeisByProduct, updateImeiPricing, updateBulkImeiPricing } = useImeiStore();
   const toast = useToast();
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -32,6 +33,47 @@ export default function Products() {
   // Dialog (modal) level filters for individual units
   const [modalConditionFilter, setModalConditionFilter] = useState('');
   const [modalPtaFilter, setModalPtaFilter] = useState('');
+
+  // Price Edit Modal states
+  const [editingImei, setEditingImei] = useState<any | null>(null);
+  const [editCostPrice, setEditCostPrice] = useState('');
+  const [editSalePrice, setEditSalePrice] = useState('');
+  const [isBulkEdit, setIsBulkEdit] = useState(false);
+
+  const handleSavePriceEdit = async () => {
+    if (!editingImei) return;
+    const cost = parseFloat(editCostPrice);
+    const sale = parseFloat(editSalePrice);
+    
+    if (isNaN(cost) || cost < 0 || isNaN(sale) || sale < 0) {
+      toast.error('Invalid pricing', 'Please enter valid cost and sale prices.');
+      return;
+    }
+    
+    let success = false;
+    if (isBulkEdit) {
+      success = await updateBulkImeiPricing(
+        editingImei.productId, 
+        editingImei.condition, 
+        cost, 
+        sale
+      );
+    } else {
+      success = await updateImeiPricing(
+        editingImei.id, 
+        cost, 
+        sale
+      );
+    }
+    
+    if (success) {
+      toast.success('Pricing updated successfully');
+      setEditingImei(null);
+      loadImeis();
+    } else {
+      toast.error('Failed to update pricing');
+    }
+  };
 
   // Reset modal filters on change of active product
   useEffect(() => {
@@ -631,12 +673,28 @@ export default function Products() {
                                   </div>
                                 ) : null}
                               </div>
-                              <span className={cn(
-                                "px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase",
-                                record.status === 'available' ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border-red-200"
-                              )}>
-                                {record.status}
-                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <span className={cn(
+                                  "px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase",
+                                  record.status === 'available' ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border-red-200"
+                                )}>
+                                  {record.status}
+                                </span>
+                                {record.condition !== 'new' && record.status === 'available' && (
+                                  <button
+                                    onClick={() => {
+                                      setEditingImei(record);
+                                      setEditCostPrice(record.costPrice ? String(record.costPrice) : '');
+                                      setEditSalePrice(record.salePrice ? String(record.salePrice) : '');
+                                      setIsBulkEdit(false);
+                                    }}
+                                    className="p-1 rounded text-orange-600 hover:bg-orange-50 transition-colors"
+                                    title="Edit price"
+                                  >
+                                    <Pencil className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           )) : (
                             <div className="p-4 text-center text-gray-500 font-sans text-xs italic">
@@ -651,6 +709,66 @@ export default function Products() {
               </div>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Price Modal */}
+      <Dialog open={!!editingImei} onOpenChange={(open) => { if (!open) setEditingImei(null); }}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit IMEI Price</DialogTitle>
+          </DialogHeader>
+          {editingImei && (
+            <div className="space-y-4 py-4">
+              <div className="bg-gray-50 border p-3 rounded-lg text-xs space-y-1">
+                <p><span className="text-gray-500 font-medium">IMEI:</span> <span className="font-mono font-bold text-gray-800">{editingImei.imei}</span></p>
+                <p><span className="text-gray-500 font-medium">Condition:</span> <span className="font-bold text-orange-700 capitalize">{editingImei.condition === 'open_box' ? 'Open Box' : editingImei.condition}</span></p>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="edit-cost-price" className="text-xs font-semibold">Cost Price</Label>
+                  <Input
+                    id="edit-cost-price"
+                    type="number"
+                    value={editCostPrice}
+                    onChange={e => setEditCostPrice(e.target.value)}
+                    placeholder="Enter cost price"
+                    className="h-9 bg-white mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-sale-price" className="text-xs font-semibold">Sale Price</Label>
+                  <Input
+                    id="edit-sale-price"
+                    type="number"
+                    value={editSalePrice}
+                    onChange={e => setEditSalePrice(e.target.value)}
+                    placeholder="Enter sale price"
+                    className="h-9 bg-white mt-1"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-2 pt-2 border-t">
+                <input
+                  type="checkbox"
+                  id="bulk-edit-checkbox"
+                  checked={isBulkEdit}
+                  onChange={e => setIsBulkEdit(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500 mt-0.5"
+                />
+                <Label htmlFor="bulk-edit-checkbox" className="text-xs font-medium text-gray-750 cursor-pointer select-none leading-relaxed">
+                  Apply this price to all available <span className="font-bold capitalize">{editingImei.condition === 'open_box' ? 'Open Box' : editingImei.condition}</span> IMEIs of this product
+                </Label>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" size="sm" onClick={() => setEditingImei(null)}>Cancel</Button>
+                <Button className="bg-orange-500 hover:bg-orange-600" size="sm" onClick={handleSavePriceEdit}>Save Changes</Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
