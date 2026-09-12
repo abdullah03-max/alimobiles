@@ -165,6 +165,7 @@ type PurchaseItem = {
   ram?: string;
   brandName?: string;
   model?: string;
+  salePrice?: number;
 };
 
 // Purchase
