@@ -78,23 +78,17 @@ export default function BuyBack() {
     setEditingNotes(purchase.notes?.replace('Repurchased device from customer. Details: ', '').replace(/Repurchased device from customer\. Previous invoice: .*\. Details: /, '') || '');
 
     if (item) {
-      const productObj = products.find(p => p.id === item.productId);
-      if (productObj) {
-        let sale = productObj.salePrice;
-        if (productObj.description && productObj.description.startsWith('{')) {
-          try {
-            const parsed = JSON.parse(productObj.description);
-            const matchedVariant = (parsed.variants || []).find((v: any) => 
-              v.ram?.trim().toLowerCase() === (item.ram || '').trim().toLowerCase() && 
-              v.storage?.trim().toLowerCase() === (item.storage || '').trim().toLowerCase()
-            );
-            if (matchedVariant) {
-              sale = matchedVariant.salePrice ?? sale;
-            }
-          } catch (e) {}
-        }
-        setEditingNewSalePrice(sale);
-        setEditingCondition(productObj.condition === 'refurbished' ? 'refurbished' : productObj.condition === 'open_box' ? 'open_box' : 'used');
+      const imeiRec = item.imei ? findByImei(item.imei) : null;
+      if (imeiRec) {
+        setEditingNewSalePrice(imeiRec.salePrice ?? item.salePrice ?? 0);
+        setEditingCondition(
+          imeiRec.condition === 'refurbished' ? 'refurbished' : 
+          imeiRec.condition === 'open_box' ? 'open_box' : 'used'
+        );
+      } else {
+        const productObj = products.find(p => p.id === item.productId);
+        setEditingNewSalePrice(item.salePrice ?? productObj?.salePrice ?? 0);
+        setEditingCondition('used');
       }
     }
   };
@@ -121,50 +115,43 @@ export default function BuyBack() {
           {
             ...item,
             unitCost: editingBuyBackPrice,
-            total: editingBuyBackPrice
+            total: editingBuyBackPrice,
+            salePrice: editingNewSalePrice
           }
         ]
       });
 
-      // 2. Update variant specs in product description JSON if variants exist
-      let updatedDescription = productObj.description;
-      let firstCost = editingBuyBackPrice;
-      let firstSale = editingNewSalePrice;
+      // 2. Update the IMEI's custom pricing and condition in product_imeis table and store
+      if (item.imei) {
+        const imeiRec = findByImei(item.imei);
+        if (imeiRec) {
+          const { error: imeiUpdateErr } = await supabase
+            .from('product_imeis')
+            .update({
+              cost_price: editingBuyBackPrice,
+              sale_price: editingNewSalePrice,
+              condition: editingCondition,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', imeiRec.id);
 
-      if (productObj.description && productObj.description.startsWith('{')) {
-        try {
-          const parsed = JSON.parse(productObj.description);
-          const variants = parsed.variants || [];
-          // Match variant by item's ram/storage
-          const matchedIdx = variants.findIndex((v: any) => 
-            v.ram?.trim().toLowerCase() === (item.ram || '').trim().toLowerCase() && 
-            v.storage?.trim().toLowerCase() === (item.storage || '').trim().toLowerCase()
-          );
-          if (matchedIdx !== -1) {
-            variants[matchedIdx] = {
-              ...variants[matchedIdx],
-              costPrice: editingBuyBackPrice,
-              salePrice: editingNewSalePrice
-            };
-            parsed.variants = variants;
-            updatedDescription = JSON.stringify(parsed);
+          if (imeiUpdateErr) {
+            console.error('Failed to update IMEI pricing in Supabase:', imeiUpdateErr);
+          } else {
+            useImeiStore.setState(state => ({
+              imeis: state.imeis.map(i => i.id === imeiRec.id ? {
+                ...i,
+                costPrice: editingBuyBackPrice,
+                salePrice: editingNewSalePrice,
+                condition: editingCondition,
+                updatedAt: new Date().toISOString()
+              } : i)
+            }));
           }
-          if (variants.length > 0) {
-            firstCost = variants[0].costPrice ?? firstCost;
-            firstSale = variants[0].salePrice ?? firstSale;
-          }
-        } catch (err) {}
+        }
       }
 
-      // 3. Save updated prices on Product
-      await updateProduct(productObj.id, {
-        costPrice: firstCost,
-        salePrice: firstSale,
-        condition: editingCondition,
-        description: updatedDescription
-      });
-
-      toast.success('Buy Back Updated', 'Transaction details and product pricing updated.');
+      toast.success('Buy Back Updated', 'Transaction details and IMEI pricing updated.');
       setEditingPurchase(null);
     } catch (err: any) {
       console.error(err);
@@ -451,40 +438,6 @@ export default function BuyBack() {
 
     setSubmitting(true);
     try {
-      // Update variant specs prices in description JSON
-      let updatedDescription = product.description;
-      if (product.description && product.description.startsWith('{') && selectedVariantIdx !== '') {
-        try {
-          const parsed = JSON.parse(product.description);
-          const variants = parsed.variants || [];
-          const idx = parseInt(selectedVariantIdx);
-          if (variants[idx]) {
-            variants[idx] = {
-              ...variants[idx],
-              costPrice: buyBackPrice,
-              salePrice: newSalePrice
-            };
-            parsed.variants = variants;
-            updatedDescription = JSON.stringify(parsed);
-          }
-        } catch (err) {}
-      }
-
-      // Calculate first variant fallback prices
-      let firstCost = buyBackPrice;
-      let firstSale = newSalePrice;
-
-      if (updatedDescription && updatedDescription.startsWith('{')) {
-        try {
-          const parsed = JSON.parse(updatedDescription);
-          const variants = parsed.variants || [];
-          if (variants.length > 0) {
-            firstCost = variants[0].costPrice ?? firstCost;
-            firstSale = variants[0].salePrice ?? firstSale;
-          }
-        } catch (err) {}
-      }
-
       // 1. Find or create default supplier
       let buyBackSupplier: any = suppliers.find(s => s.name === 'Walk-in Buy Back');
       if (!buyBackSupplier) {
@@ -499,21 +452,21 @@ export default function BuyBack() {
         throw new Error('Could not initialize Buy Back Supplier');
       }
 
-      // 2. Mark IMEI as available
+      // 2. Mark IMEI as available (this also updates stockQuantity on the product)
       const imeiRestored = await markImeiAvailable(matchedImei.imei);
       if (!imeiRestored) {
         throw new Error('Failed to restore IMEI status to available');
       }
 
-      // Update IMEI's ram/storage/condition/pricing in database if selected/changed
+      // 3. Update IMEI's ram/storage/condition/pricing in database for this specific IMEI only
       const { error: imeiUpdateErr } = await supabase
         .from('product_imeis')
         .update({ 
           ram: ramToUse || null, 
           storage: storageToUse || null,
-          condition: condition || null,
-          cost_price: firstCost || null,
-          sale_price: firstSale || null,
+          condition: condition || 'used',
+          cost_price: buyBackPrice,
+          sale_price: newSalePrice,
           updated_at: new Date().toISOString()
         })
         .eq('id', matchedImei.id);
@@ -525,25 +478,19 @@ export default function BuyBack() {
         useImeiStore.setState(state => ({
           imeis: state.imeis.map(i => i.id === matchedImei.id ? { 
             ...i, 
+            status: 'available',
+            soldAt: undefined,
             ram: ramToUse, 
             storage: storageToUse,
-            condition: condition,
-            costPrice: firstCost,
-            salePrice: firstSale
+            condition: condition || 'used',
+            costPrice: buyBackPrice,
+            salePrice: newSalePrice,
+            updatedAt: new Date().toISOString()
           } : i)
         }));
       }
 
-
-
-      // 4. Save updated prices on the Product
-      await updateProduct(product.id, {
-        costPrice: firstCost,
-        salePrice: firstSale,
-        description: updatedDescription
-      });
-
-      // 5. Create new Purchase record
+      // 4. Create new Purchase record for the buyback transaction
       const noteDetails = `Repurchased device from customer. Previous invoice: ${previousSale ? previousSale.sale.invoiceNumber : 'N/A'}. Details: ${notes}`;
       await addPurchase({
         supplierId: buyBackSupplier.id,
@@ -568,8 +515,9 @@ export default function BuyBack() {
             color: matchedImei.color,
             storage: storageToUse,
             ram: ramToUse,
-            brandName: product.brandId, // store brand id/name
-            model: product.model
+            brandName: product.brandId,
+            model: product.model,
+            salePrice: newSalePrice
           }
         ]
       });
@@ -667,7 +615,9 @@ export default function BuyBack() {
                     </div>
                     <div>
                       <span className="text-gray-400 text-xs">Current Condition</span>
-                      <p className="font-semibold text-gray-800 capitalize">{product.condition}</p>
+                      <p className="font-semibold text-gray-800 capitalize">
+                        {matchedImei.condition === 'open_box' ? 'Open Box' : (matchedImei.condition || 'New')}
+                      </p>
                     </div>
                     <div>
                       <span className="text-gray-400 text-xs">IMEI 1</span>
