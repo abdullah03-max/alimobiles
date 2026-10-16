@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useProductStore } from '@/stores/productStore';
 import { useSaleStore } from '@/stores/saleStore';
-import { Menu, Bell, User, ChevronDown } from 'lucide-react';
+import { Menu, Bell, User, ChevronDown, Laptop } from 'lucide-react';
 import { useState, useRef, useEffect, useMemo } from 'react';
 import logoImage from '@/assets/—Pngtree—ali urdu calligraphy free eps_5739559.png';
 
@@ -40,6 +40,29 @@ export default function Header() {
   const userMenuRef = useRef<HTMLDivElement>(null);
   const products = useProductStore(s => s.products);
   const sales = useSaleStore(s => s.sales);
+
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [canInstall, setCanInstall] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setCanInstall(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const choiceResult = await deferredPrompt.userChoice;
+    if (choiceResult?.outcome === 'accepted') {
+      setCanInstall(false);
+      setDeferredPrompt(null);
+    }
+  };
 
   const pageTitle = pageTitles[location.pathname] || 'Ali Mobiles POS';
   const closeSidebar = useUiStore(s => s.closeSidebar);
@@ -133,6 +156,17 @@ export default function Header() {
         <span className="text-xs text-gray-500 hidden md:block">
           {currentTime}
         </span>
+
+        {canInstall && (
+          <button
+            onClick={handleInstallClick}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 text-xs font-bold transition shadow-xs"
+            title="Install Ali Mobiles POS as Desktop App"
+          >
+            <Laptop className="w-3.5 h-3.5 text-orange-600" />
+            <span className="hidden sm:inline">Install App</span>
+          </button>
+        )}
 
         <div className="relative" ref={notificationsRef}>
           <button

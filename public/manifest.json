@@ -1,0 +1,51 @@
+{
+  "short_name": "Ali Mobiles",
+  "name": "Ali Mobiles POS — Point of Sale & IMEI Inventory",
+  "description": "Professional Mobile Shop POS, IMEI Inventory Tracker, and Thermal Receipt Management System",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#f97316",
+  "categories": ["business", "finance", "productivity"],
+  "icons": [
+    {
+      "src": "/app_icon.png",
+      "type": "image/png",
+      "sizes": "192x192 512x512",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.png",
+      "type": "image/png",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Point of Sale",
+      "short_name": "POS",
+      "description": "Open POS Checkout",
+      "url": "/pos",
+      "icons": [{ "src": "/app_icon.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Purchases",
+      "short_name": "Purchases",
+      "description": "Manage Purchase Invoices & IMEIs",
+      "url": "/purchases",
+      "icons": [{ "src": "/app_icon.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Sales History",
+      "short_name": "Sales",
+      "description": "View Sales & Receipts",
+      "url": "/sales",
+      "icons": [{ "src": "/app_icon.png", "sizes": "192x192" }]
+    }
+  ]
+}
