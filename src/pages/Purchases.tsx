@@ -11,9 +11,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { Plus, Search, Eye, Trash2, Smartphone, CheckCircle2, Printer, Palette, Calendar, Hash, FileText } from 'lucide-react';
+import { Plus, Search, Eye, Trash2, Smartphone, CheckCircle2, Printer, Palette, Calendar, Hash, FileText, Copy, Check } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { usePrint } from '@/hooks/usePrint';
+import BarcodeComponent from '@/components/shared/Barcode';
 
 // Define the PurchaseItem structure inside the page
 interface ScannedPurchaseItem {
@@ -23,6 +24,8 @@ interface ScannedPurchaseItem {
   unitCost: number;
   total: number;
   imei: string;
+  imei1?: string;
+  imei2?: string;
   color?: string;
   storage?: string;
   ram?: string;
@@ -34,11 +37,15 @@ export default function Purchases() {
   const { purchases, suppliers, loadData: loadSuppliers, addPurchase, updatePurchase, deletePurchase } = useSupplierStore();
   const { products, brands, loadData: loadProducts } = useProductStore();
   const { loadData: loadImeis, imeis } = useImeiStore();
+  const { shopSettings } = useSettingsStore();
   const toast = useToast();
   const { printReceipt } = usePrint();
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [viewPurchase, setViewPurchase] = useState<typeof purchases[0] | null>(null);
+  const [viewImeisPurchase, setViewImeisPurchase] = useState<typeof purchases[0] | null>(null);
+  const [imeiSearchQuery, setImeiSearchQuery] = useState('');
+  const [includeBarcodesInThermal, setIncludeBarcodesInThermal] = useState(true);
 
   // New purchase form state
   const [supplierId, setSupplierId] = useState('');
@@ -130,14 +137,14 @@ export default function Purchases() {
     scanRef.current?.focus();
 
     // 1. Check if IMEI is already scanned in this invoice
-    if (scannedItems.some(item => item.imei === query)) {
+    if (scannedItems.some(item => item.imei === query || item.imei1 === query || item.imei2 === query)) {
       setScanError(`IMEI "${query}" has already been scanned in this invoice.`);
       toast.error('Duplicate scan', `IMEI "${query}" is already added.`);
       return;
     }
 
     // 2. Search for the IMEI in the existing inventory
-    const inventoryImei = imeis.find(i => i.imei === query);
+    const inventoryImei = imeis.find(i => i.imei === query || i.imei1 === query || i.imei2 === query);
     if (!inventoryImei) {
       setScanError('IMEI not found. Please add this product in the Add Product module first.');
       toast.error('IMEI not found', 'This IMEI does not exist in the inventory.');
@@ -174,13 +181,17 @@ export default function Purchases() {
     }
 
     // Add product to the invoice list
+    const finalImei1 = inventoryImei.imei1 || inventoryImei.imei || query;
+    const finalImei2 = inventoryImei.imei2 || '';
     const newItem: ScannedPurchaseItem = {
       productId: product.id,
       productName: product.name,
       quantity: 1,
       unitCost: unitCost,
       total: unitCost,
-      imei: query,
+      imei: finalImei1,
+      imei1: finalImei1,
+      imei2: finalImei2,
       color: inventoryImei.color || product.color,
       storage: inventoryImei.storage || product.storage,
       ram: inventoryImei.ram || product.ram,
@@ -235,6 +246,8 @@ export default function Purchases() {
       unitCost: item.unitCost,
       total: item.unitCost,
       imei: item.imei,
+      imei1: item.imei1 || item.imei,
+      imei2: item.imei2 || '',
       color: item.color,
       storage: item.storage,
       brandName: item.brandName,
@@ -261,6 +274,89 @@ export default function Purchases() {
     setSupplierId('');
     setInvoiceNumber('');
     setScannedItems([]);
+  };
+
+  const [copiedImei, setCopiedImei] = useState<string | null>(null);
+  const [copiedAll, setCopiedAll] = useState(false);
+
+  const purchaseMobileItems = useMemo(() => {
+    if (!viewImeisPurchase?.items) return [];
+
+    return viewImeisPurchase.items.map((item, index) => {
+      let imei1 = (item as any).imei1 || item.imei || '';
+      let imei2 = (item as any).imei2 || '';
+
+      // Fallback: if imei2 is empty, lookup from imeiStore by imei or imei1
+      if (!imei2 && (item.imei || (item as any).imei1)) {
+        const searchKey = item.imei || (item as any).imei1;
+        const matched = imeis.find(
+          im => im.imei === searchKey || im.imei1 === searchKey || im.imei2 === searchKey
+        );
+        if (matched) {
+          imei1 = matched.imei1 || matched.imei;
+          imei2 = matched.imei2 || '';
+        }
+      }
+
+      const product = products.find(p => p.id === item.productId);
+      const brand = brands.find(b => b.id === product?.brandId);
+
+      const modelName = (item as any).model || product?.model || item.productName;
+      const brandName = (item as any).brandName || brand?.name || '';
+      const color = (item as any).color || '';
+      const storage = (item as any).storage || product?.storage || '';
+      const ram = (item as any).ram || product?.ram || '';
+
+      return {
+        id: `${item.productId}-${index}-${imei1}`,
+        index: index + 1,
+        modelName,
+        brandName,
+        fullName: [brandName, modelName].filter(Boolean).join(' '),
+        color,
+        storage,
+        ram,
+        imei1,
+        imei2,
+        unitCost: item.unitCost,
+      };
+    });
+  }, [viewImeisPurchase, imeis, products, brands]);
+
+  const filteredMobileItems = useMemo(() => {
+    if (!imeiSearchQuery.trim()) return purchaseMobileItems;
+    const q = imeiSearchQuery.toLowerCase();
+    return purchaseMobileItems.filter(item =>
+      item.fullName.toLowerCase().includes(q) ||
+      item.imei1.toLowerCase().includes(q) ||
+      item.imei2.toLowerCase().includes(q) ||
+      (item.color && item.color.toLowerCase().includes(q))
+    );
+  }, [purchaseMobileItems, imeiSearchQuery]);
+
+  const handlePrintThermal = () => {
+    printReceipt('thermal-purchase-imeis-print', '80mm');
+  };
+
+  const handleCopy = (text: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedImei(text);
+    setTimeout(() => setCopiedImei(null), 2000);
+  };
+
+  const handleCopyAllImeis = () => {
+    if (!purchaseMobileItems.length) return;
+    const text = purchaseMobileItems
+      .map(item => {
+        const specs = [item.storage, item.ram, item.color].filter(Boolean).join(', ');
+        return `${item.fullName}${specs ? ` (${specs})` : ''}\nIMEI 1: ${item.imei1 || 'N/A'}\nIMEI 2: ${item.imei2 || 'N/A'}`;
+      })
+      .join('\n\n');
+    navigator.clipboard.writeText(text);
+    setCopiedAll(true);
+    toast.success('All IMEIs copied to clipboard');
+    setTimeout(() => setCopiedAll(false), 2000);
   };
 
   return (
@@ -339,6 +435,16 @@ export default function Purchases() {
                   </td>
                   <td className="px-6 py-4 text-center">
                     <div className="flex items-center justify-center gap-1.5">
+                      <button
+                        onClick={() => {
+                          setViewImeisPurchase(p);
+                          setImeiSearchQuery('');
+                        }}
+                        className="p-1.5 rounded-lg hover:bg-orange-50 text-orange-600 hover:text-orange-700 transition"
+                        title="View Both IMEIs & Print Thermal"
+                      >
+                        <Smartphone className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => setViewPurchase(p)}
                         className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-900 transition"
@@ -561,6 +667,255 @@ export default function Purchases() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* View Both IMEIs & Thermal Print Dialog */}
+      <Dialog open={!!viewImeisPurchase} onOpenChange={() => setViewImeisPurchase(null)}>
+        <DialogContent className="sm:max-w-2xl max-h-[88vh] flex flex-col p-0 overflow-hidden">
+          {/* Dialog Header */}
+          <div className="p-5 border-b bg-gray-50/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-orange-100 text-orange-600 rounded-lg">
+                  <Smartphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <DialogTitle className="text-lg font-bold text-gray-900">
+                    Purchase Mobile IMEIs
+                  </DialogTitle>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    PO #{viewImeisPurchase?.poNumber} &bull; {viewImeisPurchase?.supplierName} &bull; {purchaseMobileItems.length} {purchaseMobileItems.length === 1 ? 'Mobile' : 'Mobiles'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCopyAllImeis}
+                className="text-xs font-semibold h-9"
+              >
+                {copiedAll ? <Check className="w-3.5 h-3.5 mr-1.5 text-green-600" /> : <Copy className="w-3.5 h-3.5 mr-1.5 text-gray-600" />}
+                {copiedAll ? 'Copied All' : 'Copy All'}
+              </Button>
+
+              <Button
+                size="sm"
+                onClick={handlePrintThermal}
+                className="bg-orange-500 hover:bg-orange-600 text-white font-semibold text-xs h-9 shadow-sm"
+              >
+                <Printer className="w-3.5 h-3.5 mr-1.5" />
+                Print Thermal Slip
+              </Button>
+            </div>
+          </div>
+
+          {/* Search & Options Filter Toolbar */}
+          <div className="px-5 py-3 border-b bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                value={imeiSearchQuery}
+                onChange={e => setImeiSearchQuery(e.target.value)}
+                placeholder="Filter by model, IMEI 1 or IMEI 2..."
+                className="pl-9 h-9 text-xs border-gray-200 rounded-lg"
+              />
+            </div>
+
+            <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-gray-700 select-none">
+              <input
+                type="checkbox"
+                checked={includeBarcodesInThermal}
+                onChange={e => setIncludeBarcodesInThermal(e.target.checked)}
+                className="rounded border-gray-300 text-orange-500 focus:ring-orange-500 w-4 h-4"
+              />
+              <span>Include Barcodes in Thermal Print</span>
+            </label>
+          </div>
+
+          {/* Scrollable IMEIs List */}
+          <div className="p-5 overflow-y-auto space-y-3 flex-1 bg-gray-50/30">
+            {filteredMobileItems.length === 0 ? (
+              <div className="text-center py-10">
+                <Smartphone className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                <p className="text-sm font-semibold text-gray-700">No matching mobile IMEIs found</p>
+                <p className="text-xs text-gray-400 mt-0.5">Try searching for a different IMEI or model name.</p>
+              </div>
+            ) : (
+              filteredMobileItems.map(item => (
+                <div
+                  key={item.id}
+                  className="bg-white border border-gray-200 rounded-xl p-3.5 shadow-xs hover:border-orange-200 transition"
+                >
+                  {/* Top row: Model and Specs */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-2.5 border-b border-gray-100">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-orange-100 text-orange-700 text-xs font-bold flex items-center justify-center shrink-0">
+                        {item.index}
+                      </span>
+                      <span className="font-bold text-gray-900 text-sm">
+                        {item.fullName}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {item.color && (
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-700">
+                          {item.color}
+                        </span>
+                      )}
+                      {(item.ram || item.storage) && (
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-100">
+                          {[item.ram && `${item.ram}`, item.storage].filter(Boolean).join(' / ')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Bottom row: IMEI 1 & IMEI 2 */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2.5">
+                    {/* IMEI 1 */}
+                    <div className="flex items-center justify-between bg-gray-50/80 rounded-lg p-2 border border-gray-100">
+                      <div className="min-w-0 pr-2">
+                        <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">IMEI 1</div>
+                        <div className="font-mono text-xs font-bold text-gray-900 select-all truncate">
+                          {item.imei1 || <span className="text-gray-400 font-normal italic">Not recorded</span>}
+                        </div>
+                      </div>
+                      {item.imei1 && (
+                        <button
+                          onClick={() => handleCopy(item.imei1)}
+                          className="p-1 rounded hover:bg-gray-200 text-gray-500 hover:text-gray-700 transition shrink-0"
+                          title="Copy IMEI 1"
+                        >
+                          {copiedImei === item.imei1 ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* IMEI 2 */}
+                    <div className="flex items-center justify-between bg-gray-50/80 rounded-lg p-2 border border-gray-100">
+                      <div className="min-w-0 pr-2">
+                        <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">IMEI 2</div>
+                        <div className="font-mono text-xs font-bold text-gray-900 select-all truncate">
+                          {item.imei2 || <span className="text-gray-400 font-normal italic">Single IMEI / None</span>}
+                        </div>
+                      </div>
+                      {item.imei2 && (
+                        <button
+                          onClick={() => handleCopy(item.imei2)}
+                          className="p-1 rounded hover:bg-gray-200 text-gray-500 hover:text-gray-700 transition shrink-0"
+                          title="Copy IMEI 2"
+                        >
+                          {copiedImei === item.imei2 ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Hidden Printable Thermal Slip for ESC/POS Thermal Printers (80mm) */}
+      <div className="hidden">
+        {viewImeisPurchase && (
+          <div
+            id="thermal-purchase-imeis-print"
+            className="wide-invoice text-black font-bold text-xs p-1"
+            style={{ width: '72mm', maxWidth: '72mm', margin: '0 auto', fontFamily: 'monospace' }}
+          >
+            {/* Header */}
+            <div className="text-center pb-2 border-b-2 border-dashed border-black">
+              <h2 className="text-base font-black uppercase tracking-wide leading-tight">{shopSettings.shopName || 'ALI MOBILES'}</h2>
+              {shopSettings.address && <p className="text-[10px] leading-tight mt-0.5">{shopSettings.address}</p>}
+              {shopSettings.phone && <p className="text-[10px] leading-tight font-bold">Tel: {shopSettings.phone}</p>}
+              <div className="mt-1.5 inline-block border border-black px-2 py-0.5 text-[11px] font-black uppercase">
+                PURCHASE MOBILE IMEIs
+              </div>
+            </div>
+
+            {/* Invoice Details */}
+            <div className="py-1.5 border-b border-dashed border-black text-[10px] space-y-0.5">
+              <div className="flex justify-between">
+                <span>PO #:</span>
+                <span className="font-bold">{viewImeisPurchase.poNumber}</span>
+              </div>
+              {viewImeisPurchase.reference && (
+                <div className="flex justify-between">
+                  <span>Bill Ref:</span>
+                  <span className="font-bold">{viewImeisPurchase.reference}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span>Supplier:</span>
+                <span className="font-bold truncate max-w-[140px]">{viewImeisPurchase.supplierName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Date:</span>
+                <span>{formatDate(viewImeisPurchase.createdAt)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Total Mobiles:</span>
+                <span className="font-bold">{purchaseMobileItems.length} Units</span>
+              </div>
+            </div>
+
+            {/* Mobiles List with IMEI 1 & IMEI 2 */}
+            <div className="py-2 space-y-2 border-b-2 border-dashed border-black">
+              {purchaseMobileItems.map((item, idx) => (
+                <div key={item.id || idx} className="text-[10px] pb-1.5 border-b border-dotted border-gray-400 last:border-b-0 last:pb-0">
+                  {/* Model Name & Specs */}
+                  <div className="font-black text-[11px] leading-snug">
+                    {idx + 1}. {item.fullName}
+                  </div>
+                  {(item.storage || item.ram || item.color) && (
+                    <div className="text-[9px] text-gray-800">
+                      {[item.ram && `${item.ram} RAM`, item.storage, item.color].filter(Boolean).join(' | ')}
+                    </div>
+                  )}
+
+                  {/* IMEI 1 */}
+                  <div className="mt-1">
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="font-bold">IMEI 1:</span>
+                      <span className="font-mono font-bold tracking-wider">{item.imei1 || 'N/A'}</span>
+                    </div>
+                    {includeBarcodesInThermal && item.imei1 && (
+                      <div className="my-0.5 flex justify-center barcode-container">
+                        <BarcodeComponent value={item.imei1} height={26} widthScale={0.75} />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* IMEI 2 */}
+                  {item.imei2 ? (
+                    <div className="mt-0.5">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="font-bold">IMEI 2:</span>
+                        <span className="font-mono font-bold tracking-wider">{item.imei2}</span>
+                      </div>
+                      {includeBarcodesInThermal && item.imei2 && (
+                        <div className="my-0.5 flex justify-center barcode-container">
+                          <BarcodeComponent value={item.imei2} height={26} widthScale={0.75} />
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+
+            {/* Footer */}
+            <div className="text-center pt-2 text-[9px] space-y-0.5">
+              <p className="font-bold">*** END OF PURCHASE LIST ***</p>
+              <p className="text-[8px] text-gray-600">Printed: {new Date().toLocaleString()}</p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

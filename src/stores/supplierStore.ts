@@ -62,7 +62,9 @@ export const useSupplierStore = create<SupplierState>((set, get) => ({
             try {
               const parsed = JSON.parse(item.productName);
               item.productName = parsed.name || item.productName;
-              item.imei = parsed.imei || null;
+              item.imei = parsed.imei || parsed.imei1 || null;
+              item.imei1 = parsed.imei1 || parsed.imei || null;
+              item.imei2 = parsed.imei2 || null;
               item.color = parsed.color || null;
               item.storage = parsed.storage || null;
               item.brandName = parsed.brandName || null;
@@ -200,7 +202,9 @@ export const useSupplierStore = create<SupplierState>((set, get) => ({
       const itemsToInsert = purchase.items.map(item => {
         const namePayload = {
           name: item.productName,
-          imei: item.imei || null,
+          imei: item.imei || item.imei1 || null,
+          imei1: item.imei1 || item.imei || null,
+          imei2: item.imei2 || null,
           color: item.color || null,
           storage: item.storage || null,
           brandName: item.brandName || null,
@@ -231,7 +235,9 @@ export const useSupplierStore = create<SupplierState>((set, get) => ({
           try {
             const parsed = JSON.parse(item.productName);
             item.productName = parsed.name || item.productName;
-            item.imei = parsed.imei || null;
+            item.imei = parsed.imei || parsed.imei1 || null;
+            item.imei1 = parsed.imei1 || parsed.imei || null;
+            item.imei2 = parsed.imei2 || null;
             item.color = parsed.color || null;
             item.storage = parsed.storage || null;
             item.brandName = parsed.brandName || null;
